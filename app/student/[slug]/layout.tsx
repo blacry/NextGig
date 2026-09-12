@@ -5,18 +5,30 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ThemeToggle } from "@/components/shared";
 import { StudentProvider, useStudent } from "@/lib/student-context";
+import { useRole } from "@/lib/role-context";
 
 // ── Student Layout Wrapper ───────────────────────────────────────────
 
-function StudentLayoutContent({ children, slug }: { children: React.ReactNode; slug: string }) {
+function StudentLayoutContent({ children }: { children: React.ReactNode }) {
   const { isLoaded, student } = useStudent();
+  const { role, isLoading: isAuthLoading } = useRole();
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoaded && !student) {
+    if (isAuthLoading) return;
+
+    // No session, or a recruiter following a student link.
+    if (role !== "student") {
       router.push("/login");
+      return;
     }
-  }, [isLoaded, student, router]);
+
+    // Signed in, but the profile for this slug is not readable — either the
+    // slug belongs to someone else or onboarding has not run yet.
+    if (isLoaded && !student) {
+      router.push("/onboarding/upload");
+    }
+  }, [isAuthLoading, role, isLoaded, student, router]);
 
   if (!isLoaded || !student) {
     return null; // or a full-page loading spinner
@@ -53,7 +65,7 @@ export default function StudentLayout({
   const { slug } = use(params);
   return (
     <StudentProvider studentSlug={slug}>
-      <StudentLayoutContent slug={slug}>{children}</StudentLayoutContent>
+      <StudentLayoutContent>{children}</StudentLayoutContent>
     </StudentProvider>
   );
 }

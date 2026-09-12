@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X } from "lucide-react";
-import { toast } from "sonner";
+import { Plus, Trash2 } from "lucide-react";
 
 // ── Step 2: Review Parsed Profile ────────────────────────────────────
 
@@ -26,38 +25,42 @@ interface ParsedProfile {
   bio: string;
   education: { degree: string; field: string; institution: string; year: number; gpa?: number };
   skills: ParsedSkill[];
-  projects: { title: string; description: string; techStack: string[] }[];
+  projects: { title: string; description: string; techStack: string[]; url?: string }[];
   certifications: { name: string; issuer: string; date: string }[];
+  sourceLinks?: { githubUrl?: string; linkedinUrl?: string };
 }
 
-const POPULAR_SKILL_SUGGESTIONS = [
-  { name: "Docker", domain: "devops" },
-  { name: "TypeScript", domain: "frontend" },
-  { name: "Git", domain: "devops" },
-  { name: "PostgreSQL", domain: "backend" },
-  { name: "AWS", domain: "cloud" },
-  { name: "GraphQL", domain: "backend" },
-  { name: "Tailwind CSS", domain: "frontend" },
-  { name: "Figma", domain: "frontend" },
-  { name: "Kubernetes", domain: "devops" },
-  { name: "MongoDB", domain: "data-ai" },
-  { name: "Redis", domain: "backend" },
-  { name: "Linux", domain: "devops" },
-];
+const PREDEFINED_SKILL_TAGS = [
+  { id: "javascript", name: "JavaScript", domain: "frontend" },
+  { id: "typescript", name: "TypeScript", domain: "frontend" },
+  { id: "react", name: "React", domain: "frontend" },
+  { id: "node-js", name: "Node.js", domain: "backend" },
+  { id: "python", name: "Python", domain: "backend" },
+  { id: "java", name: "Java", domain: "backend" },
+  { id: "sql", name: "SQL", domain: "data-ai" },
+  { id: "machine-learning", name: "Machine Learning", domain: "data-ai" },
+  { id: "aws", name: "AWS", domain: "cloud" },
+  { id: "docker", name: "Docker", domain: "devops" },
+  { id: "git", name: "Git", domain: "devops" },
+  { id: "figma", name: "Figma", domain: "general" },
+] as const;
 
 export default function ReviewPage() {
   const [profile, setProfile] = useState<ParsedProfile | null>(null);
-  const [isAddingSkill, setIsAddingSkill] = useState(false);
-  const [newSkillName, setNewSkillName] = useState("");
-  const [newSkillDomain, setNewSkillDomain] = useState("general");
-  const [newSkillLevel, setNewSkillLevel] = useState(3);
+  const [selectedSkillTag, setSelectedSkillTag] = useState(PREDEFINED_SKILL_TAGS[0].id);
   const router = useRouter();
 
   useEffect(() => {
     const stored = sessionStorage.getItem("nextgig-onboarding-parsed");
     if (stored) {
       try {
-        setProfile(JSON.parse(stored));
+        const parsed = JSON.parse(stored) as ParsedProfile;
+        queueMicrotask(() => setProfile({
+          ...parsed,
+          skills: Array.isArray(parsed.skills) ? parsed.skills : [],
+          projects: Array.isArray(parsed.projects) ? parsed.projects : [],
+          certifications: Array.isArray(parsed.certifications) ? parsed.certifications : [],
+        }));
       } catch {
         router.push("/onboarding/upload");
       }
@@ -81,11 +84,7 @@ export default function ReviewPage() {
 
   const removeSkill = (index: number) => {
     if (!profile) return;
-    const removed = profile.skills[index]?.name;
     setProfile({ ...profile, skills: profile.skills.filter((_, i) => i !== index) });
-    if (removed) {
-      toast.info(`Removed ${removed}`);
-    }
   };
 
   const updateSkillLevel = (index: number, level: number) => {
@@ -95,40 +94,52 @@ export default function ReviewPage() {
     setProfile({ ...profile, skills });
   };
 
-  const handleAddSkill = () => {
+  const addSkill = () => {
     if (!profile) return;
-    const trimmed = newSkillName.trim();
-    if (!trimmed) {
-      toast.error("Please enter a skill name.");
-      return;
-    }
+    const tag = PREDEFINED_SKILL_TAGS.find((item) => item.id === selectedSkillTag);
+    if (!tag || profile.skills.some((skill) => skill.id === tag.id)) return;
+    setProfile({ ...profile, skills: [...profile.skills, { ...tag, level: 1 }] });
+  };
 
-    const exists = profile.skills.some(
-      (s) => s.name.toLowerCase() === trimmed.toLowerCase()
-    );
-    if (exists) {
-      toast.error(`"${trimmed}" is already in your skills list.`);
-      return;
-    }
+  const updateSkillName = (index: number, name: string) => {
+    if (!profile) return;
+    const skills = [...profile.skills];
+    skills[index] = { ...skills[index], name, id: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") || `manual-skill-${index}` };
+    setProfile({ ...profile, skills });
+  };
 
-    const id = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `skill-${Date.now()}`;
-    const newSkill: ParsedSkill = {
-      id,
-      name: trimmed,
-      domain: newSkillDomain,
-      level: newSkillLevel,
-    };
+  const addProject = () => {
+    if (!profile) return;
+    setProfile({ ...profile, projects: [...profile.projects, { title: "New project", description: "", techStack: [], url: "" }] });
+  };
 
-    setProfile({
-      ...profile,
-      skills: [...profile.skills, newSkill],
-    });
+  const updateProject = (index: number, field: "title" | "description" | "url", value: string) => {
+    if (!profile) return;
+    const projects = [...profile.projects];
+    projects[index] = { ...projects[index], [field]: value };
+    setProfile({ ...profile, projects });
+  };
 
-    toast.success(`Added "${trimmed}" to your skills.`);
-    setNewSkillName("");
-    setNewSkillLevel(3);
-    setNewSkillDomain("general");
-    setIsAddingSkill(false);
+  const removeProject = (index: number) => {
+    if (!profile) return;
+    setProfile({ ...profile, projects: profile.projects.filter((_, i) => i !== index) });
+  };
+
+  const addCertification = () => {
+    if (!profile) return;
+    setProfile({ ...profile, certifications: [...profile.certifications, { name: "New certification", issuer: "", date: "" }] });
+  };
+
+  const updateCertification = (index: number, field: "name" | "issuer" | "date", value: string) => {
+    if (!profile) return;
+    const certifications = [...profile.certifications];
+    certifications[index] = { ...certifications[index], [field]: value };
+    setProfile({ ...profile, certifications });
+  };
+
+  const removeCertification = (index: number) => {
+    if (!profile) return;
+    setProfile({ ...profile, certifications: profile.certifications.filter((_, i) => i !== index) });
   };
 
   const handleContinue = () => {
@@ -138,10 +149,6 @@ export default function ReviewPage() {
   };
 
   if (!profile) return null;
-
-  const availableSuggestions = POPULAR_SKILL_SUGGESTIONS.filter(
-    (s) => !profile.skills.some((existing) => existing.name.toLowerCase() === s.name.toLowerCase())
-  );
 
   return (
     <div>
@@ -162,8 +169,20 @@ export default function ReviewPage() {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         <h2 className="text-2xl font-bold mb-2">Review Your Profile</h2>
         <p className="text-muted-foreground mb-6">
-          Here&apos;s what our AI extracted from your CV. Review and edit anything that needs correction.
+          Review the combined profile evidence and correct anything that is missing or inaccurate. Your edits become the source of truth for the assessment.
         </p>
+
+        {(profile.sourceLinks?.githubUrl || profile.sourceLinks?.linkedinUrl) && (
+          <Card className="mb-4">
+            <CardContent className="p-5">
+              <h3 className="font-semibold text-sm mb-3">Profile sources</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                {profile.sourceLinks.githubUrl && <a className="text-[var(--ng-primary)] truncate" href={profile.sourceLinks.githubUrl} target="_blank" rel="noreferrer">GitHub: {profile.sourceLinks.githubUrl}</a>}
+                {profile.sourceLinks.linkedinUrl && <a className="text-[var(--ng-primary)] truncate" href={profile.sourceLinks.linkedinUrl} target="_blank" rel="noreferrer">LinkedIn: {profile.sourceLinks.linkedinUrl}</a>}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Personal Info */}
         <Card className="mb-4">
@@ -196,206 +215,40 @@ export default function ReviewPage() {
         {/* Skills */}
         <Card className="mb-4">
           <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
-                Skills ({profile.skills.length})
-              </h3>
-              {!isAddingSkill && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsAddingSkill(true)}
-                  className="h-8 text-xs gap-1.5 border-dashed border-ng-primary/60 text-ng-primary hover:bg-ng-primary/10 hover:text-ng-primary"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Skill
-                </Button>
-              )}
-            </div>
-
-            {/* Inline Add Skill Form */}
-            <AnimatePresence>
-              {isAddingSkill && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden mb-4"
-                >
-                  <div className="p-4 rounded-xl border border-ng-primary/30 bg-muted/40 space-y-3.5 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-ng-primary" />
-                        <span className="text-xs font-semibold text-foreground">Add Missing Skill</span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => {
-                          setIsAddingSkill(false);
-                          setNewSkillName("");
-                        }}
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      <div className="md:col-span-1">
-                        <Label className="text-[11px] mb-1.5 block text-muted-foreground font-medium">Skill Name</Label>
-                        <Input
-                          autoFocus
-                          placeholder="e.g. Docker, TypeScript, AWS..."
-                          value={newSkillName}
-                          onChange={(e) => setNewSkillName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              handleAddSkill();
-                            }
-                          }}
-                          className="h-9 text-xs bg-background"
-                        />
-                      </div>
-
-                      <div>
-                        <Label className="text-[11px] mb-1.5 block text-muted-foreground font-medium">Domain</Label>
-                        <select
-                          value={newSkillDomain}
-                          onChange={(e) => setNewSkillDomain(e.target.value)}
-                          className="w-full h-9 px-2.5 rounded-md border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          <option value="frontend">Frontend</option>
-                          <option value="backend">Backend</option>
-                          <option value="data-ai">Data & AI</option>
-                          <option value="cloud">Cloud</option>
-                          <option value="devops">DevOps</option>
-                          <option value="mobile">Mobile</option>
-                          <option value="general">General</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <div className="flex justify-between items-center mb-1.5">
-                          <Label className="text-[11px] text-muted-foreground font-medium">Proficiency</Label>
-                          <span className="text-[11px] font-semibold text-ng-primary">Lvl {newSkillLevel}/5</span>
-                        </div>
-                        <div className="flex items-center gap-2 h-9">
-                          <input
-                            type="range"
-                            min="1"
-                            max="5"
-                            value={newSkillLevel}
-                            onChange={(e) => setNewSkillLevel(parseInt(e.target.value))}
-                            className="w-full h-1.5 accent-ng-primary cursor-pointer"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quick suggestions if user wants to easily pick common skills */}
-                    {availableSuggestions.length > 0 && (
-                      <div className="pt-1 border-t border-border/40">
-                        <span className="text-[10px] text-muted-foreground block mb-1.5">Suggested missing skills:</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {availableSuggestions.slice(0, 8).map((item) => (
-                            <button
-                              key={item.name}
-                              type="button"
-                              onClick={() => {
-                                setNewSkillName(item.name);
-                                setNewSkillDomain(item.domain);
-                              }}
-                              className="text-[10px] px-2.5 py-1 rounded-full border border-border/80 bg-background/80 hover:bg-ng-primary/10 hover:border-ng-primary/40 hover:text-ng-primary transition-all text-muted-foreground cursor-pointer"
-                            >
-                              + {item.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex justify-end gap-2 pt-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 text-xs"
-                        onClick={() => {
-                          setIsAddingSkill(false);
-                          setNewSkillName("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-8 text-xs gap-1.5"
-                        onClick={handleAddSkill}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add Skill
-                      </Button>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
+            <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">Skills ({profile.skills.length})</h3>
             <div className="space-y-3">
               {profile.skills.map((skill, i) => (
-                <motion.div
-                  key={skill.id || i}
-                  className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: Math.min(i * 0.02, 0.3) }}
-                >
+                <motion.div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium">{skill.name}</span>
+                    <Input value={skill.name} onChange={(e) => updateSkillName(i, e.target.value)} className="h-7 text-sm max-w-xs" aria-label={`Skill ${i + 1} name`} />
                     <Badge variant="outline" className="ml-2 text-[9px] h-auto min-h-0 min-w-0 py-0 px-1">{skill.domain}</Badge>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-muted-foreground w-12">Lvl {skill.level}/5</span>
-                    <input
-                      type="range"
-                      min="1"
-                      max="5"
-                      value={skill.level ?? ""}
-                      onChange={(e) => updateSkillLevel(i, parseInt(e.target.value))}
-                      className="w-20 h-1.5 accent-ng-primary cursor-pointer"
-                    />
+                    <input type="range" min="1" max="5" value={skill.level ?? ""} onChange={(e) => updateSkillLevel(i, parseInt(e.target.value))} className="w-20 h-1.5 accent-ng-primary" />
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeSkill(i)}
-                    title="Discard skill"
-                    aria-label={`Discard ${skill.name}`}
-                    className="w-7 h-7 p-0 min-h-0 min-w-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors rounded-md"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => removeSkill(i)} className="w-7 h-7 p-0 min-h-0 min-w-0 text-muted-foreground hover:text-destructive">×</Button>
                 </motion.div>
               ))}
             </div>
-
-            {!isAddingSkill && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsAddingSkill(true)}
-                className="w-full mt-3 border border-dashed border-border/80 text-muted-foreground hover:text-foreground hover:border-ng-primary/40 text-xs py-2 h-auto gap-1.5"
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Label htmlFor="skill-tag" className="sr-only">Skill tag</Label>
+              <select
+                id="skill-tag"
+                value={selectedSkillTag}
+                onChange={(e) => setSelectedSkillTag(e.target.value)}
+                className="h-8 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                <Plus className="w-3.5 h-3.5" />
-                Add more skills
+                {PREDEFINED_SKILL_TAGS.map((tag) => (
+                  <option key={tag.id} value={tag.id} disabled={profile.skills.some((skill) => skill.id === tag.id)}>
+                    {tag.name}{profile.skills.some((skill) => skill.id === tag.id) ? " (added)" : ""}
+                  </option>
+                ))}
+              </select>
+              <Button variant="outline" size="sm" onClick={addSkill} disabled={profile.skills.some((skill) => skill.id === selectedSkillTag)}>
+                <Plus size={14} className="mr-1" /> Add selected skill
               </Button>
-            )}
+            </div>
           </CardContent>
         </Card>
 
@@ -404,33 +257,31 @@ export default function ReviewPage() {
           <CardContent className="p-5">
             <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">Projects ({profile.projects.length})</h3>
             {profile.projects.map((project, i) => (
-              <div key={i} className="p-3 rounded-lg bg-muted/50 mb-2">
-                <p className="text-sm font-medium">{project.title}</p>
-                <p className="text-xs text-muted-foreground mt-1">{project.description}</p>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {project.techStack.map((tech) => (
-                    <Badge key={tech} variant="secondary" className="text-[10px] h-auto min-h-0 min-w-0 py-0 px-1.5">{tech}</Badge>
-                  ))}
-                </div>
+              <div key={i} className="p-3 rounded-lg bg-muted/50 mb-2 space-y-2">
+                <div className="flex gap-2"><Input value={project.title} onChange={(e) => updateProject(i, "title", e.target.value)} placeholder="Project name" /><Button variant="ghost" size="sm" onClick={() => removeProject(i)} aria-label="Remove project"><Trash2 size={15} /></Button></div>
+                <Input value={project.description} onChange={(e) => updateProject(i, "description", e.target.value)} placeholder="What did you build?" />
+                <Input value={project.url ?? ""} onChange={(e) => updateProject(i, "url", e.target.value)} placeholder="Project or repository URL (optional)" />
               </div>
             ))}
+            <Button variant="outline" size="sm" className="mt-2" onClick={addProject}><Plus size={14} className="mr-1" /> Add project</Button>
           </CardContent>
         </Card>
 
         {/* Certifications */}
-        {profile.certifications.length > 0 && (
-          <Card className="mb-6">
+        <Card className="mb-6">
             <CardContent className="p-5">
-              <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">Certifications</h3>
+              <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">Certifications ({profile.certifications.length})</h3>
               {profile.certifications.map((cert, i) => (
-                <div key={i} className="p-3 rounded-lg bg-muted/50 mb-2">
-                  <p className="text-sm font-medium">{cert.name}</p>
-                  <p className="text-xs text-muted-foreground">{cert.issuer} · {cert.date}</p>
+                <div key={i} className="p-3 rounded-lg bg-muted/50 mb-2 grid grid-cols-1 md:grid-cols-[1fr_1fr_140px_auto] gap-2 items-center">
+                  <Input value={cert.name} onChange={(e) => updateCertification(i, "name", e.target.value)} placeholder="Certification name" />
+                  <Input value={cert.issuer} onChange={(e) => updateCertification(i, "issuer", e.target.value)} placeholder="Issuer" />
+                  <Input value={cert.date} onChange={(e) => updateCertification(i, "date", e.target.value)} placeholder="Date" />
+                  <Button variant="ghost" size="sm" onClick={() => removeCertification(i)} aria-label="Remove certification"><Trash2 size={15} /></Button>
                 </div>
               ))}
+              <Button variant="outline" size="sm" className="mt-2" onClick={addCertification}><Plus size={14} className="mr-1" /> Add certification</Button>
             </CardContent>
           </Card>
-        )}
 
         <div className="flex gap-3">
           <Button variant="outline" onClick={() => router.push("/onboarding/upload")} className="flex-1">

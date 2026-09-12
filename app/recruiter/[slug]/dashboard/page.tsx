@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { mockOpportunities, mockStudents } from "@/lib/data";
+import { useRecruiter } from "@/lib/recruiter-context";
 import { rankCandidatesForOpportunity } from "@/lib/matching";
 import { StatCard } from "@/components/stat-card";
 import { MatchScore } from "@/components/match-score";
@@ -10,39 +10,99 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HeatmapPreview } from "@/components/heatmap-preview";
+import { SkeletonCard } from "@/components/shared";
 
 // ── Recruiter Dashboard ──────────────────────────────────────────────
 
-export default function RecruiterDashboardPage({ params }: { params: { slug: string } }) {
-  // Use the first opportunity for the demo top pipeline
-  const opp = mockOpportunities[0];
-  const ranked = rankCandidatesForOpportunity(mockStudents, opp).slice(0, 5);
+export default function RecruiterDashboardPage() {
+  const { recruiter, company, opportunities, candidates, isLoaded } = useRecruiter();
 
-  // Mock heatmap data
-  const heatmapData = [
-    { skillName: "React", value: 95, label: "High demand, low supply" },
-    { skillName: "Node.js", value: 80 },
-    { skillName: "TypeScript", value: 85 },
-    { skillName: "Python", value: 60 },
-    { skillName: "Docker", value: 45 },
-    { skillName: "AWS", value: 75 },
-    { skillName: "Figma", value: 30 },
-    { skillName: "SQL", value: 70 },
-  ];
+  // Pipeline for the recruiter's most recent posting.
+  const featured = opportunities[0];
+
+  const ranked = useMemo(
+    () => (featured ? rankCandidatesForOpportunity(candidates, featured).slice(0, 5) : []),
+    [featured, candidates]
+  );
+
+  const candidatesById = useMemo(
+    () => new Map(candidates.map((c) => [c.id, c])),
+    [candidates]
+  );
+
+  // Supply signal across this recruiter's own postings: how many candidates in
+  // the pool meet each required level, as a share of the pool.
+  const heatmapData = useMemo(() => {
+    if (candidates.length === 0) return [];
+
+    const requirements = new Map<string, { skillName: string; requiredLevel: number }>();
+    for (const opp of opportunities) {
+      for (const requirement of [...opp.requiredSkills, ...opp.preferredSkills]) {
+        const existing = requirements.get(requirement.skillId);
+        if (!existing || requirement.requiredLevel > existing.requiredLevel) {
+          requirements.set(requirement.skillId, {
+            skillName: requirement.skillName,
+            requiredLevel: requirement.requiredLevel,
+          });
+        }
+      }
+    }
+
+    return [...requirements.entries()]
+      .map(([skillId, { skillName, requiredLevel }]) => {
+        const qualified = candidates.filter((candidate) =>
+          candidate.skills.some((s) => s.id === skillId && s.level >= requiredLevel)
+        ).length;
+        const value = Math.round((qualified / candidates.length) * 100);
+
+        return {
+          skillName,
+          value,
+          ...(value < 30
+            ? { label: `Only ${qualified} of ${candidates.length} at Level ${requiredLevel}+` }
+            : {}),
+        };
+      })
+      .sort((a, b) => a.value - b.value)
+      .slice(0, 8);
+  }, [opportunities, candidates]);
+
+  const highMatchRate = useMemo(() => {
+    if (!featured || candidates.length === 0) return 0;
+    const scores = rankCandidatesForOpportunity(candidates, featured);
+    return Math.round(
+      (scores.filter((s) => s.overallScore > 80).length / candidates.length) * 100
+    );
+  }, [featured, candidates]);
+
+  if (!isLoaded) {
+    return (
+      <div className="space-y-6">
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    );
+  }
+
+  const activeRoles = opportunities.filter((o) => o.active).length;
 
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Overview of your active pipelines and talent matches.</p>
+        <p className="text-muted-foreground mt-1">
+          {company
+            ? `Overview of ${company.name}'s active pipelines and talent matches.`
+            : "Overview of your active pipelines and talent matches."}
+        </p>
       </motion.div>
 
       {/* Top Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard index={0} title="Active Roles" value={3} trend={{ value: 1, label: "new this week" }} />
-        <StatCard index={1} title="Total Candidates" value={124} trend={{ value: 12, label: "vs last week" }} />
-        <StatCard index={2} title="Avg. Time to Hire" value={14} suffix=" days" trend={{ value: -2, label: "days vs avg" }} />
-        <StatCard index={3} title="High Match Rate" value={68} suffix="%" description="Candidates > 80% match" />
+        <StatCard index={0} title="Active Roles" value={activeRoles} description={`${opportunities.length} posted in total`} />
+        <StatCard index={1} title="Total Candidates" value={candidates.length} description="Onboarded and searchable" />
+        <StatCard index={2} title="Applications" value={0} description="Across your open roles" />
+        <StatCard index={3} title="High Match Rate" value={highMatchRate} suffix="%" description="Candidates > 80% match" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -52,58 +112,73 @@ export default function RecruiterDashboardPage({ params }: { params: { slug: str
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Top Candidates Pipeline</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">For {opp.title}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {featured ? `For ${featured.title}` : "No open roles yet"}
+                </p>
               </div>
-              <Button size="sm" variant="outline">View All</Button>
+              <Button size="sm" variant="outline" disabled={!featured}>View All</Button>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full data-table">
-                  <thead className="bg-muted/50 border-y border-border text-xs uppercase text-muted-foreground">
-                    <tr>
-                      <th className="text-left font-medium">Candidate</th>
-                      <th className="text-left font-medium">Match Score</th>
-                      <th className="text-left font-medium">Verified Skills</th>
-                      <th className="text-left font-medium">Status</th>
-                      <th className="text-right font-medium">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {ranked.map((result, i) => {
-                      const student = mockStudents.find(s => s.id === result.studentId)!;
-                      const verified = student.skills.filter(s => s.verification !== "self-declared").length;
-                      return (
-                        <motion.tr
-                          key={student.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.05 }}
-                          className="hover:bg-muted/30 transition-colors group"
-                        >
-                          <td>
-                            <div className="font-medium text-sm">{student.name}</div>
-                            <div className="text-xs text-muted-foreground">{student.education.institution}</div>
-                          </td>
-                          <td className="w-48">
-                            <MatchScore score={result.overallScore} size="sm" showBreakdown={false} />
-                          </td>
-                          <td>
-                            <Badge variant="secondary" className="font-normal text-xs">{verified} verified</Badge>
-                          </td>
-                          <td>
-                            <span className="text-xs text-muted-foreground">New Match</span>
-                          </td>
-                          <td className="text-right">
-                            <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                              View Profile
-                            </Button>
-                          </td>
-                        </motion.tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              {ranked.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full data-table">
+                    <thead className="bg-muted/50 border-y border-border text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="text-left font-medium">Candidate</th>
+                        <th className="text-left font-medium">Match Score</th>
+                        <th className="text-left font-medium">Verified Skills</th>
+                        <th className="text-left font-medium">Status</th>
+                        <th className="text-right font-medium">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {ranked.map((result, i) => {
+                        const student = candidatesById.get(result.studentId);
+                        if (!student) return null;
+
+                        const verified = student.skills.filter(
+                          (s) => s.verification !== "self-declared"
+                        ).length;
+
+                        return (
+                          <motion.tr
+                            key={student.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.05 }}
+                            className="hover:bg-muted/30 transition-colors group"
+                          >
+                            <td>
+                              <div className="font-medium text-sm">{student.name}</div>
+                              <div className="text-xs text-muted-foreground">{student.education.institution}</div>
+                            </td>
+                            <td className="w-48">
+                              <MatchScore score={result.overallScore} size="sm" showBreakdown={false} />
+                            </td>
+                            <td>
+                              <Badge variant="secondary" className="font-normal text-xs">{verified} verified</Badge>
+                            </td>
+                            <td>
+                              <span className="text-xs text-muted-foreground">New Match</span>
+                            </td>
+                            <td className="text-right">
+                              <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                View Profile
+                              </Button>
+                            </td>
+                          </motion.tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-6 text-center text-muted-foreground text-sm">
+                  {!featured
+                    ? "Post an opportunity to start matching candidates."
+                    : "No onboarded candidates to rank yet."}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -119,20 +194,42 @@ export default function RecruiterDashboardPage({ params }: { params: { slug: str
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                We noticed you&apos;re looking for <strong className="text-foreground">Next.js</strong> developers.
-                Expanding your required skills to include <strong className="text-foreground">React + Node.js</strong> increases your talent pool by 312% with comparable capability.
+                {heatmapData.length > 0 && heatmapData[0].value < 50 ? (
+                  <>
+                    <strong className="text-foreground">{heatmapData[0].skillName}</strong> is your
+                    scarcest requirement — only {heatmapData[0].value}% of the talent pool meets it.
+                    Relaxing that level, or treating it as preferred, widens your pool the most.
+                  </>
+                ) : (
+                  <>
+                    Your current requirements are well covered by the talent pool. Adding a
+                    stretch skill would help you differentiate stronger candidates.
+                  </>
+                )}
               </p>
-              <Button size="sm" variant="secondary" className="w-full">Adjust Requirements</Button>
+              <Button size="sm" variant="secondary" className="w-full" disabled={!featured}>
+                Adjust Requirements
+              </Button>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">Skill Supply vs Demand</CardTitle>
-              <p className="text-xs text-muted-foreground">Global marketplace trends</p>
+              <p className="text-xs text-muted-foreground">
+                Share of the talent pool meeting your required levels
+              </p>
             </CardHeader>
             <CardContent>
-              <HeatmapPreview data={heatmapData} maxCols={4} />
+              {heatmapData.length > 0 ? (
+                <HeatmapPreview data={heatmapData} maxCols={4} />
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  {recruiter
+                    ? "Post an opportunity to see supply signals."
+                    : "No data yet."}
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
