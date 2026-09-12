@@ -30,7 +30,11 @@ const SIGNED_OUT: AuthState = { role: null, userName: "", userSlug: "", userId: 
 
 /** Where a user belongs after authenticating, based on role and onboarding state. */
 function destinationFor(profile: ProfileRow, onboardingComplete: boolean): string {
-  if (profile.role === "recruiter") return `/recruiter/${profile.slug}/dashboard`;
+  if (profile.role === "recruiter") {
+    return onboardingComplete
+      ? `/recruiter/${profile.slug}/dashboard`
+      : "/recruiter/onboarding";
+  }
   return onboardingComplete
     ? `/student/${profile.slug}/dashboard`
     : "/onboarding/upload";
@@ -76,6 +80,18 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           throw new Error("We could not load your account. Please try again.");
         }
         onboardingComplete = student?.onboarding_complete ?? false;
+      } else if (profile.role === "recruiter") {
+        const { data: recruiter, error: recruiterError } = await supabase
+          .from("recruiters")
+          .select("company_id")
+          .eq("id", userId)
+          .maybeSingle<{ company_id: string | null }>();
+
+        if (recruiterError) {
+          console.error("[RoleProvider] failed to load recruiter row", recruiterError);
+          throw new Error("We could not load your account. Please try again.");
+        }
+        onboardingComplete = recruiter?.company_id != null;
       }
 
       return { profile, onboardingComplete };
