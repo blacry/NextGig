@@ -289,6 +289,7 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2">
             <Button
+              type="button"
               variant="outline"
               disabled={isBusy}
               onClick={() => handleDemoLogin("student")}
@@ -296,6 +297,7 @@ export default function LoginPage() {
               {pending === "demo-student" ? "Loading..." : "Student Demo"}
             </Button>
             <Button
+              type="button"
               variant="outline"
               disabled={isBusy}
               onClick={() => handleDemoLogin("recruiter")}
