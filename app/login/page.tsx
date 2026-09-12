@@ -148,9 +148,13 @@ export default function LoginPage() {
         <Card>
           <CardContent className="pt-6">
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")}>
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="login">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Create Account</TabsTrigger>
+              <TabsList className="grid !h-11 w-full grid-cols-2 gap-1 rounded-lg p-1 mb-6">
+                <TabsTrigger value="login" className="!h-9 !min-h-0 !min-w-0 px-4 py-2 leading-5 focus-visible:border-transparent">
+                  Sign In
+                </TabsTrigger>
+                <TabsTrigger value="signup" className="!h-9 !min-h-0 !min-w-0 px-4 py-2 leading-5 focus-visible:border-transparent">
+                  Create Account
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
@@ -169,22 +173,25 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <Label htmlFor="login-password" className="text-xs mb-1.5 block">Password</Label>
-                    <Input
-                      id="login-password"
-                      type={showLoginPassword ? "text" : "password"}
-                      required
-                      autoComplete="current-password"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      aria-label={showLoginPassword ? "Hide password" : "Show password"}
-                      onClick={() => setShowLoginPassword((visible) => !visible)}
-                      className="relative float-right -mt-6 mr-3 text-muted-foreground hover:text-foreground"
-                    >
-                      {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
+                    <div className="relative">
+                      <Input
+                        id="login-password"
+                        type={showLoginPassword ? "text" : "password"}
+                        required
+                        autoComplete="current-password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowLoginPassword((visible) => !visible)}
+                        className="absolute right-1 top-1/2 flex h-8 w-8 min-h-8 min-w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                      >
+                        {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isBusy}>
@@ -233,24 +240,27 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <Label htmlFor="signup-password" className="text-xs mb-1.5 block">Password</Label>
-                    <Input
-                      id="signup-password"
-                      type={showSignupPassword ? "text" : "password"}
-                      required
-                      minLength={6}
-                      autoComplete="new-password"
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
-                      placeholder="8+ chars, upper/lowercase, and a number"
-                    />
-                    <button
-                      type="button"
-                      aria-label={showSignupPassword ? "Hide password" : "Show password"}
-                      onClick={() => setShowSignupPassword((visible) => !visible)}
-                      className="relative float-right -mt-6 mr-3 text-muted-foreground hover:text-foreground"
-                    >
-                      {showSignupPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
+                    <div className="relative">
+                      <Input
+                        id="signup-password"
+                        type={showSignupPassword ? "text" : "password"}
+                        required
+                        minLength={6}
+                        autoComplete="new-password"
+                        value={signupPassword}
+                        onChange={(e) => setSignupPassword(e.target.value)}
+                        placeholder="8+ chars, upper/lowercase, and a number"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showSignupPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowSignupPassword((visible) => !visible)}
+                        className="absolute right-1 top-1/2 flex h-8 w-8 min-h-8 min-w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                      >
+                        {showSignupPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <Label className="text-xs mb-1.5 block">I am a</Label>

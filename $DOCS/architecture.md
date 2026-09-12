@@ -31,14 +31,13 @@ NextGig is a full stack MVP built for the SIH 2026 hackathon PS 26044. It uses a
 
 ## How State is Managed
 
-Since this is a frontend-only MVP, we don't have a real database or authentication backend like Supabase or Firebase. Instead, we rely on browser storage:
+The MVP integrates with **Supabase** for robust backend infrastructure, utilizing a PostgreSQL database and Supabase Auth.
 
-1. **SessionStorage:** Used for temporary data during the onboarding flow (e.g., parsed resume data, generated questions, and grade results). This ensures if the user refreshes during onboarding, they don't lose their immediate place.
-2. **LocalStorage:** Used for long-term persistence across the app (e.g., the student's completed profile, role selection, and theme preference).
+1. **Supabase Database:** Core data models for users, profiles, opportunities, and applications are persisted in the database.
+2. **Supabase Auth:** Handles secure user authentication and session management.
 3. **Context API:** 
-   - `RoleContext` (`lib/role-context.tsx`): Tracks whether the current user is a 'student' or 'recruiter'.
-   - `StudentContext` (`lib/student-context.tsx`): Provides the student's profile data to the dashboard and other views.
-   - `ThemeContext` (`lib/theme-context.tsx`): Handles light/dark/recruiter-dark mode switching.
+   - Application context providers are used to distribute authenticated user state and data across the component tree without prop drilling.
+4. **Local & Session Storage:** Used selectively for temporary, transient state during multi-step flows (like onboarding), preventing data loss on accidental refreshes before final submission.
 
 ## How the Matching Engine Works (`lib/matching.ts`)
 
@@ -59,7 +58,7 @@ We use a provider-agnostic wrapper designed to hit any OpenAI-compatible endpoin
 - `AI_MODEL`: The model name (e.g., `gpt-4o`, `gpt-3.5-turbo`).
 
 The AI handles:
-1. Parsing unstructured CV text into a structured JSON profile.
+1. Parsing unstructured CV text and extracting GitHub profile context into a structured JSON profile.
 2. Generating a dynamic, 3-question assessment based on the user's claimed skills.
 3. Evaluating the subjective answers and updating the user's skill levels.
 4. Providing actionable gap analysis and recommendations.

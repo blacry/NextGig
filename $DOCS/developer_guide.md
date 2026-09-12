@@ -6,7 +6,7 @@ This guide explains how to modify, extend, and fix the NextGig frontend MVP.
 
 1. Clone the repository.
 2. Install dependencies: `npm install`
-3. Copy `.env.local.example` to `.env.local` and add your LLM API key.
+3. Copy `.env.local.example` to `.env.local` and add your LLM API key and Supabase credentials (`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
 4. Run the development server: `npm run dev`
 5. Open `http://localhost:3000`
 
@@ -34,7 +34,7 @@ Recruiters get a special forced dark mode to distinguish their workspace. If you
 - The AI expects JSON responses. Sometimes weaker models fail to output valid JSON. If using a custom model, ensure it's capable of JSON mode or strict instruction following. Check the `console.log` in `app/api/evaluate-assessment/route.ts` if parsing fails.
 
 ### "My Dashboard has no data"
-- The mock data relies on `localStorage`. If you clear your browser data or use incognito mode, you will need to go through the onboarding flow again or click the "Try the Demo" button on the homepage to re-seed the session.
+- Ensure your Supabase database is properly seeded and your `.env.local` variables are pointing to the correct project. If you've just signed up, you may need to complete the onboarding flow to generate your profile data in the database.
 
 ### "Framer Motion animations are glitching"
 - Ensure you are wrapping dynamic lists in `<AnimatePresence>` if elements are being added or removed from the DOM.
