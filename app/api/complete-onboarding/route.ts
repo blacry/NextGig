@@ -184,13 +184,23 @@ export async function POST(request: Request) {
     }
   }
 
+  // Keep both catalog skills and user-entered skills. A custom skill gets its
+  // own catalog row instead of being silently dropped during onboarding.
   const claimedSkills = asArray(confirmedProfile.skills)
     .filter(isRecord)
-    .map((skill: ParsedSkill) => ({
-      id: asTrimmedString(skill.id),
-      level: toSkillLevel(skill.level),
-    }))
-    .filter((skill): skill is { id: string; level: SkillLevel } => skill.id !== null);
+    .map((skill: ParsedSkill) => {
+      const name = asTrimmedString(skill.name);
+      const id = asTrimmedString(skill.id) ?? (name ? crypto.randomUUID() : null);
+      return {
+        id,
+        name,
+        level: toSkillLevel(skill.level),
+      };
+    })
+    .filter(
+      (skill): skill is { id: string; name: string | null; level: SkillLevel } =>
+        skill.id !== null
+    );
 
   const assessmentResult = isRecord(body.assessmentResult) ? body.assessmentResult : {};
   const skillGrades = asArray(assessmentResult.skillGrades)
@@ -208,6 +218,30 @@ export async function POST(request: Request) {
 
   const gradeBySkillId = new Map(skillGrades.map((grade) => [grade.skillId, grade]));
   const claimedLevelById = new Map(claimedSkills.map((skill) => [skill.id, skill.level]));
+
+  const customSkills = claimedSkills.filter(
+    (skill) => skill.name && !gradeBySkillId.has(skill.id)
+  );
+
+  if (customSkills.length > 0) {
+    const { error: customSkillsError } = await supabase.from("skills").upsert(
+      customSkills.map((skill) => ({
+        id: skill.id,
+        name: skill.name as string,
+        domain: "general" as const,
+        market_demand: 0,
+      })),
+      { onConflict: "id" }
+    );
+
+    if (customSkillsError) {
+      return failure(
+        "custom skills upsert",
+        customSkillsError,
+        "Could not save your custom skills."
+      );
+    }
+  }
 
   const candidateIds = [
     ...new Set([...claimedLevelById.keys(), ...gradeBySkillId.keys()]),

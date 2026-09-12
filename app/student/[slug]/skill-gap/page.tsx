@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SkillMeter } from "@/components/skill-meter";
+import { YouTubeCourseCard } from "@/components/youtube-course-card";
 import { SkeletonCard } from "@/components/shared";
 import type { Company, LearningPath, Opportunity, SkillGap, SkillLevel } from "@/lib/types";
 
@@ -37,6 +38,14 @@ export default function SkillGapPage() {
   const [allGaps, setAllGaps] = useState<SkillGap[]>([]);
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
   const [selectedGap, setSelectedGap] = useState<SkillGap | null>(null);
+  const [youtubeCourses, setYoutubeCourses] = useState<Array<{
+    title: string;
+    videoId: string;
+    thumbnail: string;
+    channel: string;
+    description: string;
+    relevance: number;
+  }>>([]);
 
   useEffect(() => {
     if (!student) return;
@@ -90,6 +99,23 @@ export default function SkillGapPage() {
         if (criticalSkillIds.length > 0) {
           const paths = await getLearningPathsForSkills(criticalSkillIds);
           setLearningPaths(paths);
+
+          try {
+            const response = await fetch("/api/youtube-courses", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                skills: uniqueGaps.slice(0, 5).map((gap) => gap.skillName),
+                context: "Close these critical skill gaps for target job opportunities",
+              }),
+            });
+            if (response.ok) {
+              const data = await response.json();
+              if (active) setYoutubeCourses(data.courses || []);
+            }
+          } catch (youtubeError) {
+            console.error("[skill-gap] YouTube recommendations failed", youtubeError);
+          }
         }
       } catch (error) {
         console.error("[skill-gap] failed to load", error);
@@ -428,6 +454,20 @@ export default function SkillGapPage() {
                       No learning resources found. Check back soon.
                     </CardContent>
                   </Card>
+                )}
+
+                {youtubeCourses.length > 0 && (
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="font-semibold text-lg">Learn your gaps</h3>
+                      <p className="text-sm text-muted-foreground">AI-selected YouTube lessons to build the skills employers want.</p>
+                    </div>
+                    <div className="space-y-3">
+                      {youtubeCourses.slice(0, 3).map((course, index) => (
+                        <YouTubeCourseCard key={`${course.videoId}-${index}`} {...course} index={index} />
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 <Card className="bg-muted/30 border-dashed">

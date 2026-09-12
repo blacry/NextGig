@@ -11,6 +11,7 @@ import { StatCard } from "@/components/stat-card";
 import { SkillsRadarChart } from "@/components/skills-radar-chart";
 import { OpportunityCard } from "@/components/opportunity-card";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
+import { YouTubeCourseCard } from "@/components/youtube-course-card";
 import { SkillMeter } from "@/components/skill-meter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TERMINAL_STAGES } from "@/lib/types";
@@ -32,6 +33,14 @@ export default function StudentDashboardPage() {
     bestMatchId: string | null;
     trend: number;
   } | null>(null);
+  const [youtubeCourses, setYoutubeCourses] = useState<Array<{
+    title: string;
+    videoId: string;
+    thumbnail: string;
+    channel: string;
+    description: string;
+    relevance: number;
+  }>>([]);
 
   useEffect(() => {
     if (!student) return;
@@ -50,6 +59,23 @@ export default function StudentDashboardPage() {
             rows.map((row) => row.opportunity)
           )
         );
+
+        try {
+          const response = await fetch("/api/youtube-courses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              skills: student.skills.map((skill) => skill.name),
+              context: `Dashboard recommendations for a ${student.education.field} student`,
+            }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (active) setYoutubeCourses(data.courses || []);
+          }
+        } catch (youtubeError) {
+          console.error("[dashboard] YouTube recommendations failed", youtubeError);
+        }
       } catch (error) {
         console.error("[dashboard] failed to load opportunities", error);
         if (active) {
@@ -135,6 +161,23 @@ export default function StudentDashboardPage() {
           />
         </div>
       </div>
+
+      {youtubeCourses.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-lg">Learn next</h3>
+              <p className="text-sm text-muted-foreground">AI-recommended YouTube lessons for your career path.</p>
+            </div>
+            <button className="text-sm text-[var(--ng-primary)] hover:underline" onClick={() => router.push(`/student/${student.slug}/courses`)}>View all</button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {youtubeCourses.slice(0, 3).map((course, index) => (
+              <YouTubeCourseCard key={`${course.videoId}-${index}`} {...course} index={index} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Left Column: Top Match & Gaps */}

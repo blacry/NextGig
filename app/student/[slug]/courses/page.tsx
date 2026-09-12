@@ -11,15 +11,27 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SkeletonCard } from "@/components/shared";
+import { YouTubeCourseCard } from "@/components/youtube-course-card";
 import type { LearningPath } from "@/lib/types";
 
 // ── Courses Page ─────────────────────────────────────────────────────
+
+interface YouTubeCourse {
+  title: string;
+  videoId: string;
+  thumbnail: string;
+  channel: string;
+  description: string;
+  relevance: number;
+}
 
 export default function CoursesPage() {
   const { student, isLoaded } = useStudent();
   const router = useRouter();
   const [courses, setCourses] = useState<LearningPath[]>([]);
+  const [youtubeCourses, setYoutubeCourses] = useState<YouTubeCourse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingYoutube, setLoadingYoutube] = useState(true);
   const [search, setSearch] = useState("");
   const [filterLevel, setFilterLevel] = useState<number | null>(null);
 
@@ -51,6 +63,40 @@ export default function CoursesPage() {
       active = false;
     };
   }, []);
+
+  // Load personalized YouTube recommendations
+  useEffect(() => {
+    if (!student) return;
+
+    let active = true;
+    const loadYoutubeCourses = async () => {
+      setLoadingYoutube(true);
+      try {
+        const skills = student.skills.map((skill) => skill.name);
+        const response = await fetch("/api/youtube-courses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            skills,
+            context: `Student in ${student.education.field} looking to improve their career skills`,
+          }),
+        });
+
+        if (!response.ok) throw new Error("Failed to load recommendations");
+        const data = await response.json();
+        if (active) setYoutubeCourses(data.courses || []);
+      } catch (error) {
+        console.error("[courses] failed to load YouTube recommendations", error);
+      } finally {
+        if (active) setLoadingYoutube(false);
+      }
+    };
+
+    void loadYoutubeCourses();
+    return () => {
+      active = false;
+    };
+  }, [student]);
 
   if (!isLoaded || !student) return null;
 
@@ -89,6 +135,30 @@ export default function CoursesPage() {
           Curated courses to enhance your skills and close gaps.
         </p>
       </motion.div>
+
+      {/* AI-powered YouTube recommendations */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">Recommended for you</h2>
+            <p className="text-sm text-muted-foreground">AI-picked YouTube lessons based on your skills and goals.</p>
+          </div>
+          <Badge variant="secondary" className="shrink-0">✨ Personalized</Badge>
+        </div>
+        {loadingYoutube ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <SkeletonCard /><SkeletonCard /><SkeletonCard />
+          </div>
+        ) : youtubeCourses.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {youtubeCourses.slice(0, 6).map((course, index) => (
+              <YouTubeCourseCard key={`${course.videoId}-${index}`} {...course} index={index} />
+            ))}
+          </div>
+        ) : (
+          <Card><CardContent className="p-5 text-sm text-muted-foreground">Personalized recommendations will appear here soon.</CardContent></Card>
+        )}
+      </section>
 
       {/* Search and Filters */}
       <div className="space-y-4">
