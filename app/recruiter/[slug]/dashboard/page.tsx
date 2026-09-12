@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { useRecruiter } from "@/lib/recruiter-context";
 import { rankCandidatesForOpportunity } from "@/lib/matching";
+import { OpportunityForm } from "@/components/opportunity-form";
 import { StatCard } from "@/components/stat-card";
 import { MatchScore } from "@/components/match-score";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +17,8 @@ import { SkeletonCard } from "@/components/shared";
 // ── Recruiter Dashboard ──────────────────────────────────────────────
 
 export default function RecruiterDashboardPage() {
-  const { recruiter, company, opportunities, candidates, isLoaded } = useRecruiter();
+  const { recruiter, company, opportunities, candidates, isLoaded, refresh } = useRecruiter();
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   // Pipeline for the recruiter's most recent posting.
   const featured = opportunities[0];
@@ -88,13 +91,30 @@ export default function RecruiterDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          {company
-            ? `Overview of ${company.name}'s active pipelines and talent matches.`
-            : "Overview of your active pipelines and talent matches."}
-        </p>
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+      >
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            {company
+              ? `Overview of ${company.name}'s active pipelines and talent matches.`
+              : "Overview of your active pipelines and talent matches."}
+          </p>
+        </div>
+        <Button
+          onClick={() => setIsFormOpen(true)}
+          className="bg-[var(--ng-primary)] hover:bg-[var(--ng-primary-dark)] text-white shadow-lg shadow-[var(--ng-primary)]/20 font-medium px-5 h-10 gap-2 shrink-0 self-start sm:self-auto"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Post Opportunity
+        </Button>
       </motion.div>
 
       {/* Top Stats */}
@@ -234,6 +254,20 @@ export default function RecruiterDashboardPage() {
           </Card>
         </div>
       </div>
+
+      {/* Slide-over Drawer Form */}
+      {recruiter && company && (
+        <OpportunityForm
+          open={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+          recruiterId={recruiter.id}
+          companyId={company.id}
+          onSuccess={() => {
+            refresh();
+            setIsFormOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

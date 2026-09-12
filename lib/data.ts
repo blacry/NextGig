@@ -512,7 +512,79 @@ export async function getOpportunitiesByRecruiterId(
   return data.map(toOpportunity);
 }
 
-// ── Applications ──────────────────────────────────────────────────────
+// ── Opportunity writes ────────────────────────────────────────────────
+
+export interface CreateOpportunityInput {
+  recruiterId: string;
+  companyId: string;
+  title: string;
+  domain: import("./types").SkillDomain;
+  type: "internship" | "full-time" | "contract";
+  location: string;
+  workMode: "remote" | "hybrid" | "onsite";
+  description: string;
+  eligibility: string;
+  compensation: string;
+  deadline: string;
+  duration?: string;
+  openings: number;
+  active: boolean;
+  skills: {
+    skillId: string;
+    requiredLevel: import("./types").SkillLevel;
+    /** false = required, true = preferred */
+    preferred: boolean;
+  }[];
+}
+
+/**
+ * Inserts a new opportunity and its skill requirements in a single
+ * Supabase transaction (opportunity row first, then opportunity_skills).
+ * Returns the inserted Opportunity so the caller can optimistically update
+ * context state without a round-trip.
+ */
+export async function createOpportunity(
+  input: CreateOpportunityInput
+): Promise<Opportunity> {
+  const supabase = createClient();
+
+  const { data: oppRow, error: oppError } = await supabase
+    .from("opportunities")
+    .insert({
+      title: input.title,
+      recruiter_id: input.recruiterId,
+      company_id: input.companyId,
+      domain: input.domain,
+      type: input.type,
+      location: input.location,
+      description: input.description,
+      eligibility: input.eligibility,
+      compensation: input.compensation,
+      deadline: input.deadline || null,
+      duration: input.duration || null,
+      active: input.active,
+    })
+    .select(OPPORTUNITY_SELECT)
+    .single<OpportunityRow>();
+
+  if (oppError) throw new DataError("creating the opportunity", oppError);
+
+  if (input.skills.length > 0) {
+    const skillRows = input.skills.map((s) => ({
+      opportunity_id: oppRow.id,
+      skill_id: s.skillId,
+      required_level: s.requiredLevel,
+      preferred: s.preferred,
+    }));
+    const { error: skillError } = await supabase
+      .from("opportunity_skills")
+      .insert(skillRows);
+    if (skillError) throw new DataError("saving skill requirements", skillError);
+  }
+
+  return toOpportunity(oppRow);
+}
+
 
 export async function getApplicationsByStudentId(
   studentId: string
@@ -631,20 +703,21 @@ function toWriteError(
 export async function applyToOpportunity(opportunityId: string): Promise<Application> {
   const supabase = createClient();
   const { data, error } = await supabase
-    .rpc("apply_to_opportunity", { p_opportunity_id: opportunityId })
-    .returns<ApplicationRpcRow>();
+    .rpc("apply_to_opportunity", { p_opportunity_id: opportunityId });
 
   if (error || !data) {
     throw toWriteError(error, "Could not submit your application. Please try again.");
   }
 
+  const row = data as unknown as ApplicationRpcRow;
+
   return {
-    id: data.id,
-    studentId: data.student_id,
-    opportunityId: data.opportunity_id,
-    currentStage: data.current_stage,
-    stageHistory: [{ stage: data.current_stage, timestamp: data.applied_at }],
-    appliedAt: data.applied_at,
+    id: row.id,
+    studentId: row.student_id,
+    opportunityId: row.opportunity_id,
+    currentStage: row.current_stage,
+    stageHistory: [{ stage: row.current_stage, timestamp: row.applied_at }],
+    appliedAt: row.applied_at,
   };
 }
 
@@ -666,14 +739,15 @@ export async function setApplicationStage(
       p_application_id: applicationId,
       p_stage: stage,
       p_note: note?.trim() ? note.trim() : null,
-    })
-    .returns<ApplicationRpcRow>();
+    });
 
   if (error || !data) {
     throw toWriteError(error, "Could not update the application. Please try again.");
   }
 
-  return { currentStage: data.current_stage };
+  const row = data as unknown as ApplicationRpcRow;
+
+  return { currentStage: row.current_stage };
 }
 
 // ── Learning paths ────────────────────────────────────────────────────

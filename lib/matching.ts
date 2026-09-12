@@ -132,7 +132,8 @@ function calculateBreakdown(
     : 0;
 
   // ── 2. Education Match (15% weight) ──
-  const relevantDomains = DOMAIN_RELEVANCE[student.education.field] || [];
+  const field = student.education.field;
+  const relevantDomains = field ? (DOMAIN_RELEVANCE[field] || []) : [];
   const educationMatch = relevantDomains.includes(opportunity.domain)
     ? Math.min(100, 60 + (student.education.gpa || 7) * 5)
     : 30; // Base score for non-relevant degrees
