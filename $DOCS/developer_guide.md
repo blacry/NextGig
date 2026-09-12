@@ -1,6 +1,6 @@
 # Developer Guide
 
-This guide explains how to modify, extend, and fix the NextGig MVP.
+This guide explains how to modify, extend, and fix the NextGig frontend MVP.
 
 ## Getting Started Locally
 
