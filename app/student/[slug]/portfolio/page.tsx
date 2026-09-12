@@ -16,6 +16,7 @@ import {
   getSupabaseServiceRoleKey,
   getSupabaseUrl,
 } from "@/lib/supabase/env";
+import { ShareButton } from "./ShareButton";
 
 interface PageProps {
   params: Promise<{
@@ -290,7 +291,7 @@ export default async function PublicPortfolioPage({
       <div className="relative mx-auto w-full max-w-5xl">
         {/* BRAND */}
 
-        <header className="mb-8 flex items-center justify-between">
+        <header className="mb-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--ng-primary)]">
               <span className="text-sm font-bold text-white">
@@ -309,9 +310,17 @@ export default async function PublicPortfolioPage({
             </div>
           </div>
 
-          <div className="hidden items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/5 px-3 py-1.5 text-[9px] font-medium tracking-wide text-emerald-400 sm:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            VERIFIED DIGITAL IDENTITY
+          <div className="flex items-center gap-3">
+            <div className="hidden items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/5 px-3 py-1.5 text-[9px] font-medium tracking-wide text-emerald-400 sm:flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              VERIFIED DIGITAL IDENTITY
+            </div>
+
+            <ShareButton
+              slug={slug}
+              title={`${profile.name}'s Digital Passport`}
+              description={`Verified digital professional passport for ${profile.name} on the NextGig Skill Intelligence Network.`}
+            />
           </div>
         </header>
 
