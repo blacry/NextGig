@@ -585,6 +585,58 @@ export async function createOpportunity(
   return toOpportunity(oppRow);
 }
 
+/**
+ * Updates an existing opportunity and replaces its skill requirements.
+ */
+export async function updateOpportunity(
+  opportunityId: string,
+  input: Partial<CreateOpportunityInput>
+): Promise<void> {
+  const supabase = createClient();
+
+  const updateData: Record<string, any> = {};
+  if (input.title !== undefined) updateData.title = input.title;
+  if (input.domain !== undefined) updateData.domain = input.domain;
+  if (input.type !== undefined) updateData.type = input.type;
+  if (input.location !== undefined) updateData.location = input.location;
+  if (input.description !== undefined) updateData.description = input.description;
+  if (input.eligibility !== undefined) updateData.eligibility = input.eligibility;
+  if (input.compensation !== undefined) updateData.compensation = input.compensation;
+  if (input.deadline !== undefined) updateData.deadline = input.deadline || null;
+  if (input.duration !== undefined) updateData.duration = input.duration || null;
+  if (input.active !== undefined) updateData.active = input.active;
+
+  if (Object.keys(updateData).length > 0) {
+    const { error: oppError } = await supabase
+      .from("opportunities")
+      .update(updateData)
+      .eq("id", opportunityId);
+    if (oppError) throw new DataError("updating the opportunity", oppError);
+  }
+
+  if (input.skills) {
+    // Replace skills
+    const { error: delError } = await supabase
+      .from("opportunity_skills")
+      .delete()
+      .eq("opportunity_id", opportunityId);
+    if (delError) console.error("Error clearing old skills", delError);
+
+    if (input.skills.length > 0) {
+      const skillRows = input.skills.map((s) => ({
+        opportunity_id: opportunityId,
+        skill_id: s.skillId,
+        required_level: s.requiredLevel,
+        preferred: s.preferred,
+      }));
+      const { error: skillError } = await supabase
+        .from("opportunity_skills")
+        .insert(skillRows);
+      if (skillError) throw new DataError("updating skill requirements", skillError);
+    }
+  }
+}
+
 
 export async function getApplicationsByStudentId(
   studentId: string

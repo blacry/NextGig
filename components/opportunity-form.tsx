@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { createOpportunity, getSkillTaxonomy, type CreateOpportunityInput } from "@/lib/data";
-import type { SkillDomain, SkillLevel, SkillTaxonomyItem } from "@/lib/types";
+import type { Opportunity, OpportunitySkillRequirement, SkillDomain, SkillLevel, SkillTaxonomyItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,7 @@ interface OpportunityFormProps {
   onClose: () => void;
   recruiterId: string;
   companyId: string;
+  initialOpportunity?: Opportunity | null;
   onSuccess: () => void;
 }
 
@@ -72,6 +73,7 @@ export function OpportunityForm({
   onClose,
   recruiterId,
   companyId,
+  initialOpportunity,
   onSuccess,
 }: OpportunityFormProps) {
   // ── Taxonomy ──────────────────────────────────────────────────────────
@@ -98,18 +100,48 @@ export function OpportunityForm({
   const [skills, setSkills] = useState<SkillEntry[]>([]);
   const [submitting, setSubmitting] = useState<"draft" | "publish" | null>(null);
 
-  // ── Reset on close ───────────────────────────────────────────────────
+  // ── Pre-fill or Reset on open/change ──────────────────────────────────
   const reset = useCallback(() => {
     setTitle(""); setType("full-time"); setDomain("general");
     setLocation(""); setWorkMode("remote"); setCompensation("");
-    setDeadline(""); setDuration(""); setEligibility("");
+    setDeadline(""); setDeadline(""); setDuration(""); setEligibility("");
     setDescription(""); setMinLevel(3); setSkills([]);
     setSkillSearch(""); setShowSkillDropdown(false);
   }, []);
 
   useEffect(() => {
-    if (!open) reset();
-  }, [open, reset]);
+    if (!open) {
+      reset();
+    } else if (initialOpportunity) {
+      setTitle(initialOpportunity.title);
+      setType(initialOpportunity.type);
+      setDomain(initialOpportunity.domain || "general");
+      const rawLoc = initialOpportunity.location || "";
+      const parts = rawLoc.split("·");
+      setLocation(parts[0]?.trim() || rawLoc);
+      setCompensation(initialOpportunity.compensation || "");
+      setDeadline(initialOpportunity.deadline || "");
+      setDuration(initialOpportunity.duration || "");
+      setEligibility(initialOpportunity.eligibility || "");
+      setDescription(initialOpportunity.description || "");
+
+      const reqSkills: SkillEntry[] = (initialOpportunity.requiredSkills || []).map((s: OpportunitySkillRequirement) => ({
+        id: uid(),
+        skillId: s.skillId,
+        skillName: s.skillName,
+        requiredLevel: s.requiredLevel,
+        priority: "must",
+      }));
+      const prefSkills: SkillEntry[] = (initialOpportunity.preferredSkills || []).map((s: OpportunitySkillRequirement) => ({
+        id: uid(),
+        skillId: s.skillId,
+        skillName: s.skillName,
+        requiredLevel: s.requiredLevel,
+        priority: "important",
+      }));
+      setSkills([...reqSkills, ...prefSkills]);
+    }
+  }, [open, initialOpportunity, reset]);
 
   // ── Skill management ─────────────────────────────────────────────────
   const filteredSkills = taxonomy.filter(
