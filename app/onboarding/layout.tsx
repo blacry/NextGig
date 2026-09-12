@@ -1,38 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useRole } from "@/lib/role-context";
 
 // ── Onboarding Layout ────────────────────────────────────────────────
 // Clean, focused layout with step progress indicator.
-//
-// Onboarding writes to the signed-in student's own rows, so the whole flow
-// requires a student session — otherwise the save at the final step would
-// fail with a 401 after the user has done all the work.
 
 export default function OnboardingLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { role, isLoading } = useRole();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (role === null) {
-      router.push("/login");
-    } else if (role !== "student") {
-      router.push("/login");
-    }
-  }, [isLoading, role, router]);
-
-  if (isLoading || role !== "student") {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F6F9FB] via-[#E8F0FE] to-[#F6F9FB] dark:from-[#0A0B10] dark:via-[#0F1628] dark:to-[#0A0B10]">
       {/* Top bar */}

@@ -1,747 +1,1005 @@
-// ── NextGig Data Access ───────────────────────────────────────────────
-// Every getter here talks to Supabase and returns the camelCase domain
-// types from lib/types.ts, so callers never see snake_case rows.
-//
-// All of these run in Client Components (every page in this app is a client
-// component), so they use the browser client from lib/supabase/client.ts —
-// which carries the user's session, and therefore their RLS grants.
-//
-// Errors are thrown as DataError rather than swallowed. Call sites catch and
-// surface them with `toast.error(...)`, matching how the onboarding flow and
-// the rest of the app already report failures.
+// ── NextGig Mock Data ────────────────────────────────────────────────
+// Seed data for the MVP: students, companies, opportunities, applications,
+// skill taxonomy, learning paths, and recruiters.
+// All match percentages are COMPUTED by lib/matching.ts — never hardcoded.
 
-import { createClient } from "./supabase/client";
-import { toSkillLevel } from "./skill-level";
 import type {
-  Application,
-  ApplicationStage,
-  ApplicationStageEntry,
-  Assessment,
-  Certification,
-  Company,
-  Education,
-  LearningPath,
-  Opportunity,
-  OpportunitySkillRequirement,
-  Project,
-  Recruiter,
-  Skill,
   SkillTaxonomyItem,
   Student,
+  Company,
+  Recruiter,
+  Opportunity,
+  Application,
+  LearningPath,
 } from "./types";
-import type {
-  ApplicationRow,
-  AssessmentRow,
-  CertificationRow,
-  CompanyRow,
-  LearningPathRow,
-  OpportunityRow,
-  OpportunitySkillRow,
-  OpportunityWithCompanyRow,
-  ProjectRow,
-  RecruiterRow,
-  SkillRow,
-  StudentRow,
-  StudentSkillRow,
-} from "./supabase/rows";
 
-// ── Errors ────────────────────────────────────────────────────────────
+// ── Skill Taxonomy ───────────────────────────────────────────────────
+// The canonical list of skills in the system. Every skill reference in
+// students/opportunities should use an id from this taxonomy.
 
-/**
- * Thrown when a Supabase query fails. Carries a message safe to show in a
- * toast, with the underlying Postgres detail kept on `cause` for the console.
- */
-export class DataError extends Error {
-  constructor(operation: string, cause?: unknown) {
-    super(`Could not load ${operation}. Please try again.`);
-    this.name = "DataError";
-    this.cause = cause;
-  }
+export const skillTaxonomy: SkillTaxonomyItem[] = [
+  // Frontend
+  { id: "react", name: "React", domain: "frontend", marketDemand: 92 },
+  { id: "nextjs", name: "Next.js", domain: "frontend", marketDemand: 85 },
+  { id: "typescript", name: "TypeScript", domain: "frontend", marketDemand: 88 },
+  { id: "javascript", name: "JavaScript", domain: "frontend", marketDemand: 95 },
+  { id: "html-css", name: "HTML/CSS", domain: "frontend", marketDemand: 90 },
+  { id: "tailwind", name: "Tailwind CSS", domain: "frontend", marketDemand: 78 },
+  { id: "vue", name: "Vue.js", domain: "frontend", marketDemand: 65 },
+  { id: "angular", name: "Angular", domain: "frontend", marketDemand: 60 },
+  { id: "figma", name: "Figma", domain: "frontend", marketDemand: 70 },
+
+  // Backend
+  { id: "nodejs", name: "Node.js", domain: "backend", marketDemand: 87 },
+  { id: "python", name: "Python", domain: "backend", marketDemand: 94 },
+  { id: "java", name: "Java", domain: "backend", marketDemand: 80 },
+  { id: "golang", name: "Go", domain: "backend", marketDemand: 72 },
+  { id: "rest-api", name: "REST APIs", domain: "backend", marketDemand: 88 },
+  { id: "graphql", name: "GraphQL", domain: "backend", marketDemand: 62 },
+  { id: "postgresql", name: "PostgreSQL", domain: "backend", marketDemand: 82 },
+  { id: "mongodb", name: "MongoDB", domain: "backend", marketDemand: 75 },
+  { id: "redis", name: "Redis", domain: "backend", marketDemand: 68 },
+
+  // Data & AI
+  { id: "machine-learning", name: "Machine Learning", domain: "data-ai", marketDemand: 90 },
+  { id: "deep-learning", name: "Deep Learning", domain: "data-ai", marketDemand: 85 },
+  { id: "nlp", name: "NLP", domain: "data-ai", marketDemand: 82 },
+  { id: "pandas", name: "Pandas", domain: "data-ai", marketDemand: 86 },
+  { id: "tensorflow", name: "TensorFlow", domain: "data-ai", marketDemand: 78 },
+  { id: "pytorch", name: "PyTorch", domain: "data-ai", marketDemand: 83 },
+  { id: "data-viz", name: "Data Visualization", domain: "data-ai", marketDemand: 74 },
+  { id: "sql", name: "SQL", domain: "data-ai", marketDemand: 92 },
+  { id: "spark", name: "Apache Spark", domain: "data-ai", marketDemand: 70 },
+
+  // Cloud & DevOps
+  { id: "aws", name: "AWS", domain: "cloud", marketDemand: 91 },
+  { id: "gcp", name: "Google Cloud", domain: "cloud", marketDemand: 80 },
+  { id: "azure", name: "Azure", domain: "cloud", marketDemand: 78 },
+  { id: "docker", name: "Docker", domain: "cloud", marketDemand: 88 },
+  { id: "kubernetes", name: "Kubernetes", domain: "cloud", marketDemand: 82 },
+  { id: "ci-cd", name: "CI/CD", domain: "devops", marketDemand: 85 },
+  { id: "terraform", name: "Terraform", domain: "devops", marketDemand: 76 },
+  { id: "linux", name: "Linux", domain: "devops", marketDemand: 84 },
+  { id: "git", name: "Git", domain: "devops", marketDemand: 95 },
+
+  // Mobile
+  { id: "react-native", name: "React Native", domain: "mobile", marketDemand: 72 },
+  { id: "flutter", name: "Flutter", domain: "mobile", marketDemand: 68 },
+
+  // General
+  { id: "dsa", name: "Data Structures & Algorithms", domain: "general", marketDemand: 93 },
+  { id: "system-design", name: "System Design", domain: "general", marketDemand: 88 },
+  { id: "agile", name: "Agile/Scrum", domain: "general", marketDemand: 75 },
+  { id: "communication", name: "Communication", domain: "general", marketDemand: 80 },
+];
+
+// ── Mock Students ────────────────────────────────────────────────────
+
+export const mockStudents: Student[] = [
+  {
+    id: "s1",
+    name: "Arjun Mehta",
+    slug: "arjun-mehta",
+    email: "arjun.mehta@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "IIT Delhi", year: 2026, gpa: 8.7 },
+    skills: [
+      { id: "react", name: "React", domain: "frontend", level: 4, verification: "project-verified", verifiedAt: "2026-06-15" },
+      { id: "typescript", name: "TypeScript", domain: "frontend", level: 4, verification: "assessed", verifiedAt: "2026-05-20" },
+      { id: "nextjs", name: "Next.js", domain: "frontend", level: 3, verification: "project-verified", verifiedAt: "2026-07-01" },
+      { id: "tailwind", name: "Tailwind CSS", domain: "frontend", level: 4, verification: "self-declared" },
+      { id: "javascript", name: "JavaScript", domain: "frontend", level: 5, verification: "industry-verified", verifiedAt: "2026-04-10", verifiedBy: "Google Summer Internship" },
+      { id: "nodejs", name: "Node.js", domain: "backend", level: 3, verification: "project-verified", verifiedAt: "2026-06-15" },
+      { id: "python", name: "Python", domain: "backend", level: 3, verification: "assessed", verifiedAt: "2026-03-10" },
+      { id: "git", name: "Git", domain: "devops", level: 4, verification: "project-verified" },
+      { id: "dsa", name: "Data Structures & Algorithms", domain: "general", level: 4, verification: "assessed", verifiedAt: "2026-05-01" },
+      { id: "docker", name: "Docker", domain: "cloud", level: 2, verification: "self-declared" },
+      { id: "sql", name: "SQL", domain: "data-ai", level: 3, verification: "assessed" },
+    ],
+    projects: [
+      { id: "p1", title: "EduStream Platform", description: "A full-stack e-learning platform with real-time video streaming, quiz engine, and progress tracking.", techStack: ["React", "Next.js", "Node.js", "PostgreSQL"], url: "https://github.com/arjun/edustream", verified: true },
+      { id: "p2", title: "CodeCollab", description: "Real-time collaborative code editor with syntax highlighting and WebSocket sync.", techStack: ["TypeScript", "React", "Socket.io", "Monaco Editor"], verified: true },
+      { id: "p3", title: "Portfolio Generator", description: "AI-powered portfolio website generator from resume data.", techStack: ["Next.js", "Tailwind", "OpenAI API"], verified: false },
+    ],
+    certifications: [
+      { id: "c1", name: "Meta Front-End Developer Professional Certificate", issuer: "Coursera / Meta", date: "2026-03-15", verified: true },
+      { id: "c2", name: "AWS Cloud Practitioner", issuer: "Amazon Web Services", date: "2025-11-20", verified: true },
+    ],
+    assessments: [
+      { id: "a1", skillId: "react", skillName: "React", score: 85, maxScore: 100, level: 4, date: "2026-05-20" },
+      { id: "a2", skillId: "typescript", skillName: "TypeScript", score: 78, maxScore: 100, level: 4, date: "2026-05-20" },
+      { id: "a3", skillId: "dsa", skillName: "Data Structures & Algorithms", score: 82, maxScore: 100, level: 4, date: "2026-05-01" },
+    ],
+    onboardingComplete: true,
+    bio: "Final-year CS student at IIT Delhi passionate about building scalable web applications. Strong in React/TypeScript with industry experience from a Google internship.",
+  },
+  {
+    id: "s2",
+    name: "Priya Sharma",
+    slug: "priya-sharma",
+    email: "priya.sharma@example.com",
+    education: { degree: "B.Tech", field: "Data Science", institution: "IIIT Hyderabad", year: 2026, gpa: 9.1 },
+    skills: [
+      { id: "python", name: "Python", domain: "backend", level: 5, verification: "industry-verified", verifiedAt: "2026-06-01", verifiedBy: "Microsoft Research Internship" },
+      { id: "machine-learning", name: "Machine Learning", domain: "data-ai", level: 4, verification: "project-verified" },
+      { id: "deep-learning", name: "Deep Learning", domain: "data-ai", level: 4, verification: "assessed" },
+      { id: "pytorch", name: "PyTorch", domain: "data-ai", level: 4, verification: "project-verified" },
+      { id: "nlp", name: "NLP", domain: "data-ai", level: 3, verification: "assessed" },
+      { id: "pandas", name: "Pandas", domain: "data-ai", level: 5, verification: "project-verified" },
+      { id: "sql", name: "SQL", domain: "data-ai", level: 4, verification: "assessed" },
+      { id: "data-viz", name: "Data Visualization", domain: "data-ai", level: 3, verification: "self-declared" },
+      { id: "tensorflow", name: "TensorFlow", domain: "data-ai", level: 3, verification: "self-declared" },
+      { id: "git", name: "Git", domain: "devops", level: 3, verification: "project-verified" },
+      { id: "docker", name: "Docker", domain: "cloud", level: 2, verification: "self-declared" },
+      { id: "aws", name: "AWS", domain: "cloud", level: 2, verification: "self-declared" },
+    ],
+    projects: [
+      { id: "p4", title: "SentimentScope", description: "Multi-lingual sentiment analysis engine using transformer models for social media monitoring.", techStack: ["Python", "PyTorch", "HuggingFace", "FastAPI"], verified: true },
+      { id: "p5", title: "MedImage Classifier", description: "Deep learning pipeline for medical image classification achieving 94% accuracy on chest X-rays.", techStack: ["Python", "PyTorch", "OpenCV", "Flask"], verified: true },
+    ],
+    certifications: [
+      { id: "c3", name: "Deep Learning Specialization", issuer: "Coursera / DeepLearning.AI", date: "2026-01-10", verified: true },
+      { id: "c4", name: "Google Data Analytics Certificate", issuer: "Google", date: "2025-09-05", verified: true },
+    ],
+    assessments: [
+      { id: "a4", skillId: "python", skillName: "Python", score: 95, maxScore: 100, level: 5, date: "2026-06-01" },
+      { id: "a5", skillId: "machine-learning", skillName: "Machine Learning", score: 88, maxScore: 100, level: 4, date: "2026-06-01" },
+    ],
+    onboardingComplete: true,
+    bio: "Data Science student at IIIT Hyderabad with strong ML/DL skills. Research internship at Microsoft on NLP. Passionate about building AI solutions for healthcare.",
+  },
+  {
+    id: "s3",
+    name: "Rohan Gupta",
+    slug: "rohan-gupta",
+    email: "rohan.gupta@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "NIT Trichy", year: 2027, gpa: 8.2 },
+    skills: [
+      { id: "java", name: "Java", domain: "backend", level: 4, verification: "assessed" },
+      { id: "python", name: "Python", domain: "backend", level: 3, verification: "self-declared" },
+      { id: "aws", name: "AWS", domain: "cloud", level: 3, verification: "project-verified" },
+      { id: "docker", name: "Docker", domain: "cloud", level: 3, verification: "assessed" },
+      { id: "kubernetes", name: "Kubernetes", domain: "cloud", level: 2, verification: "self-declared" },
+      { id: "terraform", name: "Terraform", domain: "devops", level: 2, verification: "self-declared" },
+      { id: "linux", name: "Linux", domain: "devops", level: 4, verification: "project-verified" },
+      { id: "ci-cd", name: "CI/CD", domain: "devops", level: 3, verification: "project-verified" },
+      { id: "git", name: "Git", domain: "devops", level: 4, verification: "project-verified" },
+      { id: "rest-api", name: "REST APIs", domain: "backend", level: 3, verification: "project-verified" },
+      { id: "postgresql", name: "PostgreSQL", domain: "backend", level: 3, verification: "self-declared" },
+      { id: "dsa", name: "Data Structures & Algorithms", domain: "general", level: 3, verification: "assessed" },
+    ],
+    projects: [
+      { id: "p6", title: "CloudDeploy", description: "Automated multi-cloud deployment tool with Terraform and GitHub Actions integration.", techStack: ["Go", "Terraform", "AWS", "Docker"], verified: true },
+      { id: "p7", title: "LogAggregator", description: "Distributed log aggregation service processing 10K events/sec.", techStack: ["Java", "Kafka", "Elasticsearch", "Docker"], verified: false },
+    ],
+    certifications: [
+      { id: "c5", name: "AWS Solutions Architect Associate", issuer: "Amazon Web Services", date: "2026-04-20", verified: true },
+    ],
+    assessments: [
+      { id: "a6", skillId: "aws", skillName: "AWS", score: 76, maxScore: 100, level: 3, date: "2026-04-20" },
+      { id: "a7", skillId: "docker", skillName: "Docker", score: 72, maxScore: 100, level: 3, date: "2026-04-20" },
+    ],
+    onboardingComplete: true,
+    bio: "Cloud and DevOps enthusiast at NIT Trichy. AWS certified with hands-on experience in container orchestration and CI/CD pipelines.",
+  },
+  {
+    id: "s4",
+    name: "Ananya Krishnan",
+    slug: "ananya-krishnan",
+    email: "ananya.k@example.com",
+    education: { degree: "B.Tech", field: "Information Technology", institution: "VIT Vellore", year: 2026, gpa: 8.9 },
+    skills: [
+      { id: "react", name: "React", domain: "frontend", level: 3, verification: "project-verified" },
+      { id: "javascript", name: "JavaScript", domain: "frontend", level: 4, verification: "assessed" },
+      { id: "html-css", name: "HTML/CSS", domain: "frontend", level: 5, verification: "project-verified" },
+      { id: "figma", name: "Figma", domain: "frontend", level: 4, verification: "industry-verified", verifiedBy: "Zomato UX Internship" },
+      { id: "typescript", name: "TypeScript", domain: "frontend", level: 2, verification: "self-declared" },
+      { id: "vue", name: "Vue.js", domain: "frontend", level: 3, verification: "project-verified" },
+      { id: "tailwind", name: "Tailwind CSS", domain: "frontend", level: 4, verification: "project-verified" },
+      { id: "nodejs", name: "Node.js", domain: "backend", level: 2, verification: "self-declared" },
+      { id: "git", name: "Git", domain: "devops", level: 3, verification: "project-verified" },
+      { id: "communication", name: "Communication", domain: "general", level: 4, verification: "industry-verified" },
+    ],
+    projects: [
+      { id: "p8", title: "FoodieUI", description: "Design system and component library for a food delivery app with accessibility-first approach.", techStack: ["React", "Storybook", "Tailwind", "Figma"], verified: true },
+      { id: "p9", title: "TravelBlog", description: "Progressive web app travel blog with offline support and image optimization.", techStack: ["Vue.js", "Nuxt", "Tailwind"], verified: true },
+    ],
+    certifications: [
+      { id: "c6", name: "Google UX Design Professional Certificate", issuer: "Google", date: "2025-12-10", verified: true },
+    ],
+    assessments: [
+      { id: "a8", skillId: "javascript", skillName: "JavaScript", score: 82, maxScore: 100, level: 4, date: "2026-05-15" },
+    ],
+    onboardingComplete: true,
+    bio: "UI/UX focused developer at VIT. Strong in design tools and frontend frameworks with industry experience from Zomato.",
+  },
+  {
+    id: "s5",
+    name: "Vikram Singh",
+    slug: "vikram-singh",
+    email: "vikram.singh@example.com",
+    education: { degree: "M.Tech", field: "Artificial Intelligence", institution: "IISc Bangalore", year: 2026, gpa: 9.3 },
+    skills: [
+      { id: "python", name: "Python", domain: "backend", level: 5, verification: "industry-verified", verifiedBy: "Google AI Research" },
+      { id: "machine-learning", name: "Machine Learning", domain: "data-ai", level: 5, verification: "industry-verified", verifiedBy: "Published Paper" },
+      { id: "deep-learning", name: "Deep Learning", domain: "data-ai", level: 5, verification: "project-verified" },
+      { id: "pytorch", name: "PyTorch", domain: "data-ai", level: 5, verification: "project-verified" },
+      { id: "tensorflow", name: "TensorFlow", domain: "data-ai", level: 4, verification: "assessed" },
+      { id: "nlp", name: "NLP", domain: "data-ai", level: 4, verification: "project-verified" },
+      { id: "spark", name: "Apache Spark", domain: "data-ai", level: 3, verification: "self-declared" },
+      { id: "sql", name: "SQL", domain: "data-ai", level: 4, verification: "assessed" },
+      { id: "gcp", name: "Google Cloud", domain: "cloud", level: 3, verification: "project-verified" },
+      { id: "docker", name: "Docker", domain: "cloud", level: 3, verification: "self-declared" },
+      { id: "system-design", name: "System Design", domain: "general", level: 3, verification: "self-declared" },
+      { id: "git", name: "Git", domain: "devops", level: 4, verification: "project-verified" },
+    ],
+    projects: [
+      { id: "p10", title: "TranslateAI", description: "Low-resource language translation model using few-shot learning, published at ACL 2026.", techStack: ["Python", "PyTorch", "HuggingFace", "GCP"], verified: true },
+      { id: "p11", title: "AutoML Pipeline", description: "Automated ML pipeline with hyperparameter tuning and model selection.", techStack: ["Python", "Scikit-learn", "Ray Tune", "MLflow"], verified: true },
+    ],
+    certifications: [
+      { id: "c7", name: "TensorFlow Developer Certificate", issuer: "Google", date: "2025-08-15", verified: true },
+      { id: "c8", name: "GCP Professional ML Engineer", issuer: "Google Cloud", date: "2026-02-20", verified: true },
+    ],
+    assessments: [
+      { id: "a9", skillId: "machine-learning", skillName: "Machine Learning", score: 96, maxScore: 100, level: 5, date: "2026-06-01" },
+      { id: "a10", skillId: "deep-learning", skillName: "Deep Learning", score: 92, maxScore: 100, level: 5, date: "2026-06-01" },
+    ],
+    onboardingComplete: true,
+    bio: "M.Tech AI student at IISc with published research at ACL. Google AI Research intern. Expert in NLP and deep learning.",
+  },
+  {
+    id: "s6",
+    name: "Sneha Patel",
+    slug: "sneha-patel",
+    email: "sneha.patel@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "BITS Pilani", year: 2026, gpa: 8.5 },
+    skills: [
+      { id: "react", name: "React", domain: "frontend", level: 3, verification: "assessed" },
+      { id: "nodejs", name: "Node.js", domain: "backend", level: 4, verification: "project-verified" },
+      { id: "python", name: "Python", domain: "backend", level: 3, verification: "assessed" },
+      { id: "mongodb", name: "MongoDB", domain: "backend", level: 3, verification: "project-verified" },
+      { id: "rest-api", name: "REST APIs", domain: "backend", level: 4, verification: "project-verified" },
+      { id: "graphql", name: "GraphQL", domain: "backend", level: 3, verification: "self-declared" },
+      { id: "docker", name: "Docker", domain: "cloud", level: 3, verification: "assessed" },
+      { id: "aws", name: "AWS", domain: "cloud", level: 2, verification: "self-declared" },
+      { id: "git", name: "Git", domain: "devops", level: 4, verification: "project-verified" },
+      { id: "javascript", name: "JavaScript", domain: "frontend", level: 4, verification: "assessed" },
+      { id: "dsa", name: "Data Structures & Algorithms", domain: "general", level: 3, verification: "assessed" },
+    ],
+    projects: [
+      { id: "p12", title: "EventHub", description: "Full-stack event management platform with real-time notifications and payment integration.", techStack: ["React", "Node.js", "MongoDB", "Stripe"], verified: true },
+      { id: "p13", title: "GraphQL Gateway", description: "API gateway aggregating multiple microservices through a unified GraphQL schema.", techStack: ["Node.js", "GraphQL", "Docker", "Redis"], verified: true },
+    ],
+    certifications: [
+      { id: "c9", name: "MongoDB Associate Developer", issuer: "MongoDB Inc", date: "2026-02-10", verified: true },
+    ],
+    assessments: [
+      { id: "a11", skillId: "nodejs", skillName: "Node.js", score: 80, maxScore: 100, level: 4, date: "2026-04-15" },
+    ],
+    onboardingComplete: true,
+    bio: "Full-stack developer at BITS Pilani with strong backend skills. Experienced in building scalable microservices and API design.",
+  },
+  {
+    id: "s7",
+    name: "Karthik Rajan",
+    slug: "karthik-rajan",
+    email: "karthik.r@example.com",
+    education: { degree: "B.Tech", field: "Electronics & Communication", institution: "NIT Surathkal", year: 2027, gpa: 7.8 },
+    skills: [
+      { id: "python", name: "Python", domain: "backend", level: 3, verification: "self-declared" },
+      { id: "javascript", name: "JavaScript", domain: "frontend", level: 3, verification: "self-declared" },
+      { id: "react", name: "React", domain: "frontend", level: 2, verification: "self-declared" },
+      { id: "html-css", name: "HTML/CSS", domain: "frontend", level: 3, verification: "self-declared" },
+      { id: "git", name: "Git", domain: "devops", level: 2, verification: "self-declared" },
+      { id: "dsa", name: "Data Structures & Algorithms", domain: "general", level: 2, verification: "self-declared" },
+      { id: "sql", name: "SQL", domain: "data-ai", level: 2, verification: "self-declared" },
+    ],
+    projects: [
+      { id: "p14", title: "Weather App", description: "Simple weather dashboard using OpenWeather API with location detection.", techStack: ["React", "CSS", "OpenWeather API"], verified: false },
+    ],
+    certifications: [],
+    assessments: [],
+    onboardingComplete: true,
+    bio: "ECE student at NIT Surathkal transitioning into software development. Self-learning web development and DSA.",
+  },
+  {
+    id: "s8",
+    name: "Meera Iyer",
+    slug: "meera-iyer",
+    email: "meera.iyer@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "IIIT Bangalore", year: 2026, gpa: 9.0 },
+    skills: [
+      { id: "react", name: "React", domain: "frontend", level: 4, verification: "industry-verified", verifiedBy: "Flipkart Internship" },
+      { id: "typescript", name: "TypeScript", domain: "frontend", level: 4, verification: "project-verified" },
+      { id: "nextjs", name: "Next.js", domain: "frontend", level: 4, verification: "project-verified" },
+      { id: "nodejs", name: "Node.js", domain: "backend", level: 3, verification: "assessed" },
+      { id: "postgresql", name: "PostgreSQL", domain: "backend", level: 3, verification: "project-verified" },
+      { id: "tailwind", name: "Tailwind CSS", domain: "frontend", level: 4, verification: "project-verified" },
+      { id: "javascript", name: "JavaScript", domain: "frontend", level: 5, verification: "assessed" },
+      { id: "figma", name: "Figma", domain: "frontend", level: 3, verification: "self-declared" },
+      { id: "git", name: "Git", domain: "devops", level: 4, verification: "project-verified" },
+      { id: "docker", name: "Docker", domain: "cloud", level: 2, verification: "self-declared" },
+      { id: "ci-cd", name: "CI/CD", domain: "devops", level: 2, verification: "self-declared" },
+      { id: "dsa", name: "Data Structures & Algorithms", domain: "general", level: 4, verification: "assessed" },
+      { id: "system-design", name: "System Design", domain: "general", level: 2, verification: "self-declared" },
+    ],
+    projects: [
+      { id: "p15", title: "ShopFlow", description: "E-commerce platform with real-time inventory, payments, and admin dashboard.", techStack: ["Next.js", "TypeScript", "Prisma", "PostgreSQL"], verified: true },
+      { id: "p16", title: "DevDash", description: "Developer productivity dashboard aggregating GitHub, Jira, and Slack metrics.", techStack: ["React", "TypeScript", "Chart.js", "Node.js"], verified: true },
+    ],
+    certifications: [
+      { id: "c10", name: "Meta Front-End Developer Certificate", issuer: "Coursera / Meta", date: "2025-10-10", verified: true },
+    ],
+    assessments: [
+      { id: "a12", skillId: "react", skillName: "React", score: 90, maxScore: 100, level: 4, date: "2026-05-10" },
+      { id: "a13", skillId: "typescript", skillName: "TypeScript", score: 85, maxScore: 100, level: 4, date: "2026-05-10" },
+      { id: "a14", skillId: "dsa", skillName: "Data Structures & Algorithms", score: 80, maxScore: 100, level: 4, date: "2026-05-01" },
+    ],
+    onboardingComplete: true,
+    bio: "Strong frontend engineer at IIIT Bangalore. Flipkart intern with expertise in React/Next.js ecosystem. Passionate about developer tools.",
+  },
+  {
+    id: "s9",
+    name: "Aditya Verma",
+    slug: "aditya-verma",
+    email: "aditya.v@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "DTU Delhi", year: 2026, gpa: 8.3 },
+    skills: [
+      { id: "java", name: "Java", domain: "backend", level: 4, verification: "assessed" },
+      { id: "python", name: "Python", domain: "backend", level: 4, verification: "project-verified" },
+      { id: "machine-learning", name: "Machine Learning", domain: "data-ai", level: 3, verification: "assessed" },
+      { id: "pandas", name: "Pandas", domain: "data-ai", level: 4, verification: "project-verified" },
+      { id: "sql", name: "SQL", domain: "data-ai", level: 4, verification: "assessed" },
+      { id: "spark", name: "Apache Spark", domain: "data-ai", level: 2, verification: "self-declared" },
+      { id: "aws", name: "AWS", domain: "cloud", level: 3, verification: "assessed" },
+      { id: "docker", name: "Docker", domain: "cloud", level: 3, verification: "project-verified" },
+      { id: "rest-api", name: "REST APIs", domain: "backend", level: 3, verification: "project-verified" },
+      { id: "git", name: "Git", domain: "devops", level: 3, verification: "project-verified" },
+      { id: "dsa", name: "Data Structures & Algorithms", domain: "general", level: 4, verification: "assessed" },
+    ],
+    projects: [
+      { id: "p17", title: "StockPredictor", description: "LSTM-based stock price prediction with real-time dashboard and backtesting engine.", techStack: ["Python", "TensorFlow", "Pandas", "Flask"], verified: true },
+      { id: "p18", title: "ETL Pipeline", description: "Automated data pipeline processing 1M+ records daily from multiple sources.", techStack: ["Python", "Apache Airflow", "PostgreSQL", "Docker"], verified: false },
+    ],
+    certifications: [
+      { id: "c11", name: "AWS Data Analytics Specialty", issuer: "Amazon Web Services", date: "2026-03-01", verified: true },
+    ],
+    assessments: [
+      { id: "a15", skillId: "python", skillName: "Python", score: 82, maxScore: 100, level: 4, date: "2026-04-01" },
+      { id: "a16", skillId: "sql", skillName: "SQL", score: 85, maxScore: 100, level: 4, date: "2026-04-01" },
+    ],
+    onboardingComplete: true,
+    bio: "Data engineering focused student at DTU. Strong in Python, SQL, and cloud data services. Interested in building scalable data platforms.",
+  },
+  {
+    id: "s10",
+    name: "Divya Nair",
+    slug: "divya-nair",
+    email: "divya.nair@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "NSUT Delhi", year: 2027, gpa: 8.0 },
+    skills: [
+      { id: "react", name: "React", domain: "frontend", level: 2, verification: "self-declared" },
+      { id: "javascript", name: "JavaScript", domain: "frontend", level: 3, verification: "assessed" },
+      { id: "html-css", name: "HTML/CSS", domain: "frontend", level: 4, verification: "project-verified" },
+      { id: "python", name: "Python", domain: "backend", level: 3, verification: "assessed" },
+      { id: "machine-learning", name: "Machine Learning", domain: "data-ai", level: 2, verification: "self-declared" },
+      { id: "pandas", name: "Pandas", domain: "data-ai", level: 3, verification: "self-declared" },
+      { id: "sql", name: "SQL", domain: "data-ai", level: 3, verification: "assessed" },
+      { id: "git", name: "Git", domain: "devops", level: 3, verification: "project-verified" },
+      { id: "dsa", name: "Data Structures & Algorithms", domain: "general", level: 3, verification: "assessed" },
+    ],
+    projects: [
+      { id: "p19", title: "BudgetTracker", description: "Personal finance tracker with expense categorization and monthly reports.", techStack: ["React", "Chart.js", "Firebase"], verified: false },
+    ],
+    certifications: [
+      { id: "c12", name: "Python for Everybody Specialization", issuer: "Coursera / UMich", date: "2026-01-15", verified: true },
+    ],
+    assessments: [
+      { id: "a17", skillId: "python", skillName: "Python", score: 70, maxScore: 100, level: 3, date: "2026-03-01" },
+    ],
+    onboardingComplete: true,
+    bio: "Third-year student at NSUT exploring both web development and data science. Building foundations in multiple domains.",
+  },
+  {
+    id: "s11",
+    name: "Rahul Desai",
+    slug: "rahul-desai",
+    email: "rahul.desai@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "PES University", year: 2026, gpa: 8.6 },
+    skills: [
+      { id: "react-native", name: "React Native", domain: "mobile", level: 4, verification: "industry-verified", verifiedBy: "Swiggy Internship" },
+      { id: "flutter", name: "Flutter", domain: "mobile", level: 3, verification: "project-verified" },
+      { id: "react", name: "React", domain: "frontend", level: 3, verification: "assessed" },
+      { id: "typescript", name: "TypeScript", domain: "frontend", level: 3, verification: "project-verified" },
+      { id: "javascript", name: "JavaScript", domain: "frontend", level: 4, verification: "assessed" },
+      { id: "nodejs", name: "Node.js", domain: "backend", level: 3, verification: "project-verified" },
+      { id: "rest-api", name: "REST APIs", domain: "backend", level: 3, verification: "project-verified" },
+      { id: "git", name: "Git", domain: "devops", level: 4, verification: "project-verified" },
+      { id: "figma", name: "Figma", domain: "frontend", level: 3, verification: "self-declared" },
+      { id: "dsa", name: "Data Structures & Algorithms", domain: "general", level: 3, verification: "assessed" },
+    ],
+    projects: [
+      { id: "p20", title: "FitTrack", description: "Cross-platform fitness tracking app with health API integration and social features.", techStack: ["React Native", "TypeScript", "Firebase", "HealthKit"], verified: true },
+      { id: "p21", title: "QuickChat", description: "End-to-end encrypted messaging app with voice notes and media sharing.", techStack: ["Flutter", "Dart", "Firebase", "AES"], verified: true },
+    ],
+    certifications: [
+      { id: "c13", name: "React Native - The Practical Guide", issuer: "Udemy / Academind", date: "2025-07-20", verified: false },
+    ],
+    assessments: [
+      { id: "a18", skillId: "react-native", skillName: "React Native", score: 88, maxScore: 100, level: 4, date: "2026-05-01" },
+    ],
+    onboardingComplete: true,
+    bio: "Mobile-first developer at PES University. Swiggy intern specializing in React Native. Loves building consumer mobile apps.",
+  },
+  {
+    id: "s12",
+    name: "Ishita Banerjee",
+    slug: "ishita-banerjee",
+    email: "ishita.b@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "Jadavpur University", year: 2026, gpa: 8.8 },
+    skills: [
+      { id: "python", name: "Python", domain: "backend", level: 4, verification: "project-verified" },
+      { id: "java", name: "Java", domain: "backend", level: 3, verification: "assessed" },
+      { id: "golang", name: "Go", domain: "backend", level: 3, verification: "project-verified" },
+      { id: "docker", name: "Docker", domain: "cloud", level: 4, verification: "project-verified" },
+      { id: "kubernetes", name: "Kubernetes", domain: "cloud", level: 3, verification: "assessed" },
+      { id: "aws", name: "AWS", domain: "cloud", level: 3, verification: "assessed" },
+      { id: "gcp", name: "Google Cloud", domain: "cloud", level: 2, verification: "self-declared" },
+      { id: "terraform", name: "Terraform", domain: "devops", level: 3, verification: "project-verified" },
+      { id: "ci-cd", name: "CI/CD", domain: "devops", level: 4, verification: "project-verified" },
+      { id: "linux", name: "Linux", domain: "devops", level: 4, verification: "assessed" },
+      { id: "git", name: "Git", domain: "devops", level: 4, verification: "project-verified" },
+      { id: "system-design", name: "System Design", domain: "general", level: 3, verification: "assessed" },
+    ],
+    projects: [
+      { id: "p22", title: "K8s-Autopilot", description: "Kubernetes cluster auto-scaling tool with cost optimization and anomaly detection.", techStack: ["Go", "Kubernetes", "Prometheus", "Grafana"], verified: true },
+      { id: "p23", title: "InfraBot", description: "Slack bot for infrastructure provisioning and monitoring via natural language commands.", techStack: ["Python", "Terraform", "AWS", "Slack API"], verified: true },
+    ],
+    certifications: [
+      { id: "c14", name: "Certified Kubernetes Administrator", issuer: "CNCF", date: "2026-01-25", verified: true },
+      { id: "c15", name: "HashiCorp Terraform Associate", issuer: "HashiCorp", date: "2025-11-10", verified: true },
+    ],
+    assessments: [
+      { id: "a19", skillId: "docker", skillName: "Docker", score: 85, maxScore: 100, level: 4, date: "2026-03-15" },
+      { id: "a20", skillId: "kubernetes", skillName: "Kubernetes", score: 78, maxScore: 100, level: 3, date: "2026-03-15" },
+    ],
+    onboardingComplete: true,
+    bio: "DevOps and cloud infrastructure specialist at Jadavpur University. CKA certified with strong skills in Kubernetes, Terraform, and CI/CD.",
+  },
+  {
+    id: "s13",
+    name: "Tanvi Reddy",
+    slug: "tanvi-reddy",
+    email: "tanvi.r@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "CBIT Hyderabad", year: 2027, gpa: 7.5 },
+    skills: [
+      { id: "html-css", name: "HTML/CSS", domain: "frontend", level: 3, verification: "self-declared" },
+      { id: "javascript", name: "JavaScript", domain: "frontend", level: 2, verification: "self-declared" },
+      { id: "python", name: "Python", domain: "backend", level: 2, verification: "self-declared" },
+      { id: "git", name: "Git", domain: "devops", level: 2, verification: "self-declared" },
+      { id: "dsa", name: "Data Structures & Algorithms", domain: "general", level: 2, verification: "self-declared" },
+    ],
+    projects: [],
+    certifications: [],
+    assessments: [],
+    onboardingComplete: true,
+    bio: "Early-stage CS student at CBIT exploring web development. Currently learning JavaScript and Python fundamentals.",
+  },
+  {
+    id: "s14",
+    name: "Siddharth Joshi",
+    slug: "siddharth-joshi",
+    email: "sid.joshi@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "DAIICT Gandhinagar", year: 2026, gpa: 8.4 },
+    skills: [
+      { id: "react", name: "React", domain: "frontend", level: 4, verification: "project-verified" },
+      { id: "nextjs", name: "Next.js", domain: "frontend", level: 3, verification: "project-verified" },
+      { id: "typescript", name: "TypeScript", domain: "frontend", level: 3, verification: "assessed" },
+      { id: "javascript", name: "JavaScript", domain: "frontend", level: 4, verification: "assessed" },
+      { id: "nodejs", name: "Node.js", domain: "backend", level: 4, verification: "project-verified" },
+      { id: "postgresql", name: "PostgreSQL", domain: "backend", level: 3, verification: "project-verified" },
+      { id: "redis", name: "Redis", domain: "backend", level: 2, verification: "self-declared" },
+      { id: "docker", name: "Docker", domain: "cloud", level: 3, verification: "project-verified" },
+      { id: "git", name: "Git", domain: "devops", level: 4, verification: "project-verified" },
+      { id: "system-design", name: "System Design", domain: "general", level: 3, verification: "assessed" },
+      { id: "agile", name: "Agile/Scrum", domain: "general", level: 3, verification: "industry-verified", verifiedBy: "Razorpay Internship" },
+      { id: "rest-api", name: "REST APIs", domain: "backend", level: 4, verification: "project-verified" },
+      { id: "dsa", name: "Data Structures & Algorithms", domain: "general", level: 4, verification: "assessed" },
+    ],
+    projects: [
+      { id: "p24", title: "PayFlow", description: "Payment processing dashboard with transaction analytics and fraud detection alerts.", techStack: ["Next.js", "TypeScript", "Node.js", "PostgreSQL"], verified: true },
+      { id: "p25", title: "TaskBoard", description: "Kanban-style project management tool with real-time collaboration.", techStack: ["React", "Socket.io", "Redis", "Docker"], verified: true },
+    ],
+    certifications: [
+      { id: "c16", name: "System Design Interview Course", issuer: "Educative", date: "2026-04-01", verified: false },
+    ],
+    assessments: [
+      { id: "a21", skillId: "react", skillName: "React", score: 84, maxScore: 100, level: 4, date: "2026-04-15" },
+      { id: "a22", skillId: "system-design", skillName: "System Design", score: 75, maxScore: 100, level: 3, date: "2026-04-15" },
+    ],
+    onboardingComplete: true,
+    bio: "Full-stack developer at DAIICT with Razorpay internship experience. Strong in system design and building production-grade web applications.",
+  },
+  {
+    id: "s15",
+    name: "Nisha Agarwal",
+    slug: "nisha-agarwal",
+    email: "nisha.a@example.com",
+    education: { degree: "B.Tech", field: "Computer Science", institution: "MNIT Jaipur", year: 2026, gpa: 8.1 },
+    skills: [
+      { id: "python", name: "Python", domain: "backend", level: 4, verification: "assessed" },
+      { id: "machine-learning", name: "Machine Learning", domain: "data-ai", level: 3, verification: "assessed" },
+      { id: "deep-learning", name: "Deep Learning", domain: "data-ai", level: 2, verification: "self-declared" },
+      { id: "nlp", name: "NLP", domain: "data-ai", level: 3, verification: "project-verified" },
+      { id: "pandas", name: "Pandas", domain: "data-ai", level: 4, verification: "project-verified" },
+      { id: "data-viz", name: "Data Visualization", domain: "data-ai", level: 3, verification: "project-verified" },
+      { id: "sql", name: "SQL", domain: "data-ai", level: 3, verification: "assessed" },
+      { id: "tensorflow", name: "TensorFlow", domain: "data-ai", level: 2, verification: "self-declared" },
+      { id: "git", name: "Git", domain: "devops", level: 3, verification: "project-verified" },
+      { id: "communication", name: "Communication", domain: "general", level: 4, verification: "self-declared" },
+    ],
+    projects: [
+      { id: "p26", title: "NewsLens", description: "Fake news detection system using NLP and ensemble models, achieving 91% accuracy.", techStack: ["Python", "Scikit-learn", "BERT", "Flask"], verified: true },
+      { id: "p27", title: "EDA Toolkit", description: "Automated exploratory data analysis tool generating insights and visualizations.", techStack: ["Python", "Pandas", "Plotly", "Streamlit"], verified: false },
+    ],
+    certifications: [
+      { id: "c17", name: "Applied Data Science with Python", issuer: "Coursera / UMich", date: "2025-12-20", verified: true },
+    ],
+    assessments: [
+      { id: "a23", skillId: "python", skillName: "Python", score: 80, maxScore: 100, level: 4, date: "2026-03-20" },
+      { id: "a24", skillId: "machine-learning", skillName: "Machine Learning", score: 72, maxScore: 100, level: 3, date: "2026-03-20" },
+    ],
+    onboardingComplete: true,
+    bio: "Data science student at MNIT Jaipur focusing on NLP applications. Strong in Python and statistical analysis with a keen interest in AI for social good.",
+  },
+];
+
+// ── Mock Companies ───────────────────────────────────────────────────
+
+export const mockCompanies: Company[] = [
+  { id: "comp1", name: "Google", industry: "Technology", size: "10000+", location: "Bangalore, India" },
+  { id: "comp2", name: "Flipkart", industry: "E-commerce", size: "10000+", location: "Bangalore, India" },
+  { id: "comp3", name: "Razorpay", industry: "Fintech", size: "1000-5000", location: "Bangalore, India" },
+  { id: "comp4", name: "TCS", industry: "IT Services", size: "10000+", location: "Mumbai, India" },
+  { id: "comp5", name: "Infosys", industry: "IT Services", size: "10000+", location: "Bangalore, India" },
+  { id: "comp6", name: "Zerodha", industry: "Fintech", size: "1000-5000", location: "Bangalore, India" },
+  { id: "comp7", name: "PhonePe", industry: "Fintech", size: "5000-10000", location: "Bangalore, India" },
+  { id: "comp8", name: "Amazon", industry: "Technology", size: "10000+", location: "Hyderabad, India" },
+];
+
+// ── Mock Recruiters ──────────────────────────────────────────────────
+
+export const mockRecruiters: Recruiter[] = [
+  { id: "r1", name: "Rajesh Kumar", slug: "rajesh-kumar", email: "rajesh.kumar@google.com", companyId: "comp1" },
+  { id: "r2", name: "Sunita Reddy", slug: "sunita-reddy", email: "sunita.reddy@flipkart.com", companyId: "comp2" },
+];
+
+// ── Mock Opportunities ───────────────────────────────────────────────
+
+export const mockOpportunities: Opportunity[] = [
+  {
+    id: "opp1",
+    title: "Frontend Engineer Intern",
+    companyId: "comp1",
+    domain: "frontend",
+    description: "Join Google's frontend team to build next-generation web applications using React and TypeScript. You'll work on user-facing features used by millions.",
+    requiredSkills: [
+      { skillId: "react", skillName: "React", requiredLevel: 4, preferred: false },
+      { skillId: "typescript", skillName: "TypeScript", requiredLevel: 3, preferred: false },
+      { skillId: "javascript", skillName: "JavaScript", requiredLevel: 4, preferred: false },
+      { skillId: "html-css", skillName: "HTML/CSS", requiredLevel: 3, preferred: false },
+      { skillId: "git", skillName: "Git", requiredLevel: 3, preferred: false },
+    ],
+    preferredSkills: [
+      { skillId: "nextjs", skillName: "Next.js", requiredLevel: 3, preferred: true },
+      { skillId: "tailwind", skillName: "Tailwind CSS", requiredLevel: 2, preferred: true },
+      { skillId: "system-design", skillName: "System Design", requiredLevel: 2, preferred: true },
+      { skillId: "dsa", skillName: "Data Structures & Algorithms", requiredLevel: 3, preferred: true },
+    ],
+    eligibility: "B.Tech/M.Tech CS or related field, graduating 2026-2027",
+    location: "Bangalore, India",
+    type: "internship",
+    duration: "6 months",
+    compensation: "₹80,000/month + housing",
+    deadline: "2026-10-15",
+    postedAt: "2026-08-15",
+    recruiterId: "r1",
+    active: true,
+  },
+  {
+    id: "opp2",
+    title: "ML Engineer - NLP Team",
+    companyId: "comp1",
+    domain: "data-ai",
+    description: "Work on large language models and NLP systems powering Google Search and Assistant. Build and deploy production ML pipelines.",
+    requiredSkills: [
+      { skillId: "python", skillName: "Python", requiredLevel: 4, preferred: false },
+      { skillId: "machine-learning", skillName: "Machine Learning", requiredLevel: 4, preferred: false },
+      { skillId: "deep-learning", skillName: "Deep Learning", requiredLevel: 4, preferred: false },
+      { skillId: "nlp", skillName: "NLP", requiredLevel: 3, preferred: false },
+      { skillId: "pytorch", skillName: "PyTorch", requiredLevel: 3, preferred: false },
+    ],
+    preferredSkills: [
+      { skillId: "tensorflow", skillName: "TensorFlow", requiredLevel: 3, preferred: true },
+      { skillId: "gcp", skillName: "Google Cloud", requiredLevel: 2, preferred: true },
+      { skillId: "docker", skillName: "Docker", requiredLevel: 2, preferred: true },
+      { skillId: "system-design", skillName: "System Design", requiredLevel: 3, preferred: true },
+    ],
+    eligibility: "M.Tech/PhD in CS/AI/ML, or B.Tech with strong ML portfolio",
+    location: "Bangalore, India",
+    type: "full-time",
+    compensation: "₹25-40 LPA",
+    deadline: "2026-11-01",
+    postedAt: "2026-08-10",
+    recruiterId: "r1",
+    active: true,
+  },
+  {
+    id: "opp3",
+    title: "Full Stack Developer",
+    companyId: "comp2",
+    domain: "frontend",
+    description: "Build and scale Flipkart's e-commerce platform. Work across the full stack with React, Node.js, and microservices architecture.",
+    requiredSkills: [
+      { skillId: "react", skillName: "React", requiredLevel: 4, preferred: false },
+      { skillId: "nodejs", skillName: "Node.js", requiredLevel: 3, preferred: false },
+      { skillId: "javascript", skillName: "JavaScript", requiredLevel: 4, preferred: false },
+      { skillId: "rest-api", skillName: "REST APIs", requiredLevel: 3, preferred: false },
+      { skillId: "dsa", skillName: "Data Structures & Algorithms", requiredLevel: 3, preferred: false },
+    ],
+    preferredSkills: [
+      { skillId: "typescript", skillName: "TypeScript", requiredLevel: 3, preferred: true },
+      { skillId: "postgresql", skillName: "PostgreSQL", requiredLevel: 3, preferred: true },
+      { skillId: "docker", skillName: "Docker", requiredLevel: 2, preferred: true },
+      { skillId: "system-design", skillName: "System Design", requiredLevel: 2, preferred: true },
+    ],
+    eligibility: "B.Tech CS or related field, graduating 2026",
+    location: "Bangalore, India",
+    type: "full-time",
+    compensation: "₹18-28 LPA",
+    deadline: "2026-09-30",
+    postedAt: "2026-08-01",
+    recruiterId: "r2",
+    active: true,
+  },
+  {
+    id: "opp4",
+    title: "Backend Engineer - Payments",
+    companyId: "comp3",
+    domain: "backend",
+    description: "Build Razorpay's core payments infrastructure handling millions of transactions daily. Work with distributed systems and fintech regulations.",
+    requiredSkills: [
+      { skillId: "nodejs", skillName: "Node.js", requiredLevel: 4, preferred: false },
+      { skillId: "typescript", skillName: "TypeScript", requiredLevel: 3, preferred: false },
+      { skillId: "rest-api", skillName: "REST APIs", requiredLevel: 4, preferred: false },
+      { skillId: "postgresql", skillName: "PostgreSQL", requiredLevel: 3, preferred: false },
+      { skillId: "system-design", skillName: "System Design", requiredLevel: 3, preferred: false },
+    ],
+    preferredSkills: [
+      { skillId: "redis", skillName: "Redis", requiredLevel: 2, preferred: true },
+      { skillId: "docker", skillName: "Docker", requiredLevel: 3, preferred: true },
+      { skillId: "ci-cd", skillName: "CI/CD", requiredLevel: 2, preferred: true },
+      { skillId: "agile", skillName: "Agile/Scrum", requiredLevel: 2, preferred: true },
+    ],
+    eligibility: "B.Tech CS or related field, graduating 2026",
+    location: "Bangalore, India",
+    type: "full-time",
+    compensation: "₹22-35 LPA",
+    deadline: "2026-10-01",
+    postedAt: "2026-08-05",
+    recruiterId: "r2",
+    active: true,
+  },
+  {
+    id: "opp5",
+    title: "Cloud Infrastructure Engineer",
+    companyId: "comp4",
+    domain: "cloud",
+    description: "Design and manage cloud infrastructure for enterprise clients. Work with multi-cloud environments and Infrastructure as Code.",
+    requiredSkills: [
+      { skillId: "aws", skillName: "AWS", requiredLevel: 3, preferred: false },
+      { skillId: "docker", skillName: "Docker", requiredLevel: 3, preferred: false },
+      { skillId: "linux", skillName: "Linux", requiredLevel: 3, preferred: false },
+      { skillId: "ci-cd", skillName: "CI/CD", requiredLevel: 3, preferred: false },
+      { skillId: "python", skillName: "Python", requiredLevel: 3, preferred: false },
+    ],
+    preferredSkills: [
+      { skillId: "kubernetes", skillName: "Kubernetes", requiredLevel: 2, preferred: true },
+      { skillId: "terraform", skillName: "Terraform", requiredLevel: 2, preferred: true },
+      { skillId: "gcp", skillName: "Google Cloud", requiredLevel: 2, preferred: true },
+      { skillId: "azure", skillName: "Azure", requiredLevel: 2, preferred: true },
+    ],
+    eligibility: "B.Tech CS/IT or related field, graduating 2026-2027",
+    location: "Mumbai / Pune, India",
+    type: "full-time",
+    compensation: "₹12-20 LPA",
+    deadline: "2026-09-20",
+    postedAt: "2026-07-25",
+    recruiterId: "r1",
+    active: true,
+  },
+  {
+    id: "opp6",
+    title: "Data Analyst Intern",
+    companyId: "comp5",
+    domain: "data-ai",
+    description: "Analyze large datasets to derive business insights for enterprise clients. Build dashboards and automate reporting pipelines.",
+    requiredSkills: [
+      { skillId: "python", skillName: "Python", requiredLevel: 3, preferred: false },
+      { skillId: "sql", skillName: "SQL", requiredLevel: 3, preferred: false },
+      { skillId: "pandas", skillName: "Pandas", requiredLevel: 3, preferred: false },
+      { skillId: "data-viz", skillName: "Data Visualization", requiredLevel: 2, preferred: false },
+    ],
+    preferredSkills: [
+      { skillId: "machine-learning", skillName: "Machine Learning", requiredLevel: 2, preferred: true },
+      { skillId: "spark", skillName: "Apache Spark", requiredLevel: 2, preferred: true },
+      { skillId: "aws", skillName: "AWS", requiredLevel: 1, preferred: true },
+    ],
+    eligibility: "B.Tech any branch, graduating 2026-2027",
+    location: "Bangalore / Hyderabad, India",
+    type: "internship",
+    duration: "3 months",
+    compensation: "₹35,000/month",
+    deadline: "2026-09-15",
+    postedAt: "2026-08-01",
+    recruiterId: "r2",
+    active: true,
+  },
+  {
+    id: "opp7",
+    title: "Mobile Developer - React Native",
+    companyId: "comp7",
+    domain: "mobile",
+    description: "Build and maintain PhonePe's consumer-facing mobile app used by 400M+ users. Focus on performance, UX, and payment flows.",
+    requiredSkills: [
+      { skillId: "react-native", skillName: "React Native", requiredLevel: 4, preferred: false },
+      { skillId: "javascript", skillName: "JavaScript", requiredLevel: 4, preferred: false },
+      { skillId: "typescript", skillName: "TypeScript", requiredLevel: 3, preferred: false },
+      { skillId: "rest-api", skillName: "REST APIs", requiredLevel: 3, preferred: false },
+    ],
+    preferredSkills: [
+      { skillId: "react", skillName: "React", requiredLevel: 3, preferred: true },
+      { skillId: "nodejs", skillName: "Node.js", requiredLevel: 2, preferred: true },
+      { skillId: "figma", skillName: "Figma", requiredLevel: 2, preferred: true },
+      { skillId: "dsa", skillName: "Data Structures & Algorithms", requiredLevel: 3, preferred: true },
+    ],
+    eligibility: "B.Tech CS or related field, graduating 2026",
+    location: "Bangalore, India",
+    type: "full-time",
+    compensation: "₹20-30 LPA",
+    deadline: "2026-10-10",
+    postedAt: "2026-08-12",
+    recruiterId: "r2",
+    active: true,
+  },
+  {
+    id: "opp8",
+    title: "DevOps Engineer",
+    companyId: "comp6",
+    domain: "devops",
+    description: "Manage Zerodha's trading infrastructure with zero-downtime deployments. Build monitoring, alerting, and automation systems.",
+    requiredSkills: [
+      { skillId: "docker", skillName: "Docker", requiredLevel: 4, preferred: false },
+      { skillId: "kubernetes", skillName: "Kubernetes", requiredLevel: 3, preferred: false },
+      { skillId: "linux", skillName: "Linux", requiredLevel: 4, preferred: false },
+      { skillId: "ci-cd", skillName: "CI/CD", requiredLevel: 3, preferred: false },
+      { skillId: "python", skillName: "Python", requiredLevel: 3, preferred: false },
+    ],
+    preferredSkills: [
+      { skillId: "golang", skillName: "Go", requiredLevel: 2, preferred: true },
+      { skillId: "terraform", skillName: "Terraform", requiredLevel: 3, preferred: true },
+      { skillId: "aws", skillName: "AWS", requiredLevel: 3, preferred: true },
+      { skillId: "system-design", skillName: "System Design", requiredLevel: 3, preferred: true },
+    ],
+    eligibility: "B.Tech CS or related field, graduating 2026",
+    location: "Bangalore, India",
+    type: "full-time",
+    compensation: "₹18-28 LPA",
+    deadline: "2026-09-25",
+    postedAt: "2026-08-08",
+    recruiterId: "r1",
+    active: true,
+  },
+  {
+    id: "opp9",
+    title: "Software Engineer - Backend",
+    companyId: "comp8",
+    domain: "backend",
+    description: "Design and build scalable backend services for Amazon's retail platform. Work with distributed systems serving millions of requests per second.",
+    requiredSkills: [
+      { skillId: "java", skillName: "Java", requiredLevel: 4, preferred: false },
+      { skillId: "rest-api", skillName: "REST APIs", requiredLevel: 3, preferred: false },
+      { skillId: "system-design", skillName: "System Design", requiredLevel: 3, preferred: false },
+      { skillId: "dsa", skillName: "Data Structures & Algorithms", requiredLevel: 4, preferred: false },
+      { skillId: "sql", skillName: "SQL", requiredLevel: 3, preferred: false },
+    ],
+    preferredSkills: [
+      { skillId: "aws", skillName: "AWS", requiredLevel: 3, preferred: true },
+      { skillId: "docker", skillName: "Docker", requiredLevel: 2, preferred: true },
+      { skillId: "python", skillName: "Python", requiredLevel: 2, preferred: true },
+      { skillId: "redis", skillName: "Redis", requiredLevel: 2, preferred: true },
+    ],
+    eligibility: "B.Tech/M.Tech CS or related field, graduating 2026",
+    location: "Hyderabad, India",
+    type: "full-time",
+    compensation: "₹25-38 LPA",
+    deadline: "2026-10-20",
+    postedAt: "2026-08-18",
+    recruiterId: "r1",
+    active: true,
+  },
+  {
+    id: "opp10",
+    title: "UI/UX Engineer Intern",
+    companyId: "comp2",
+    domain: "frontend",
+    description: "Design and implement user interfaces for Flipkart's mobile web experience. Focus on accessibility, performance, and delightful interactions.",
+    requiredSkills: [
+      { skillId: "html-css", skillName: "HTML/CSS", requiredLevel: 4, preferred: false },
+      { skillId: "javascript", skillName: "JavaScript", requiredLevel: 3, preferred: false },
+      { skillId: "react", skillName: "React", requiredLevel: 3, preferred: false },
+      { skillId: "figma", skillName: "Figma", requiredLevel: 3, preferred: false },
+    ],
+    preferredSkills: [
+      { skillId: "tailwind", skillName: "Tailwind CSS", requiredLevel: 2, preferred: true },
+      { skillId: "typescript", skillName: "TypeScript", requiredLevel: 2, preferred: true },
+      { skillId: "vue", skillName: "Vue.js", requiredLevel: 2, preferred: true },
+      { skillId: "communication", skillName: "Communication", requiredLevel: 3, preferred: true },
+    ],
+    eligibility: "B.Tech CS/Design or related field, graduating 2026-2027",
+    location: "Bangalore, India",
+    type: "internship",
+    duration: "4 months",
+    compensation: "₹50,000/month",
+    deadline: "2026-09-10",
+    postedAt: "2026-07-28",
+    recruiterId: "r2",
+    active: true,
+  },
+];
+
+// ── Mock Applications ────────────────────────────────────────────────
+
+export const mockApplications: Application[] = [
+  {
+    id: "app1",
+    studentId: "s1",
+    opportunityId: "opp1",
+    currentStage: "shortlisted",
+    stageHistory: [
+      { stage: "applied", timestamp: "2026-08-16T10:00:00Z" },
+      { stage: "under-review", timestamp: "2026-08-18T14:30:00Z" },
+      { stage: "shortlisted", timestamp: "2026-08-22T09:15:00Z" },
+    ],
+    appliedAt: "2026-08-16T10:00:00Z",
+  },
+  {
+    id: "app2",
+    studentId: "s2",
+    opportunityId: "opp2",
+    currentStage: "interview",
+    stageHistory: [
+      { stage: "applied", timestamp: "2026-08-11T08:00:00Z" },
+      { stage: "under-review", timestamp: "2026-08-13T11:00:00Z" },
+      { stage: "shortlisted", timestamp: "2026-08-16T15:00:00Z" },
+      { stage: "interview", timestamp: "2026-08-20T10:00:00Z", note: "Technical round scheduled for Aug 25" },
+    ],
+    appliedAt: "2026-08-11T08:00:00Z",
+  },
+  {
+    id: "app3",
+    studentId: "s8",
+    opportunityId: "opp3",
+    currentStage: "under-review",
+    stageHistory: [
+      { stage: "applied", timestamp: "2026-08-05T12:00:00Z" },
+      { stage: "under-review", timestamp: "2026-08-07T09:00:00Z" },
+    ],
+    appliedAt: "2026-08-05T12:00:00Z",
+  },
+  {
+    id: "app4",
+    studentId: "s14",
+    opportunityId: "opp4",
+    currentStage: "selected",
+    stageHistory: [
+      { stage: "applied", timestamp: "2026-08-06T14:00:00Z" },
+      { stage: "under-review", timestamp: "2026-08-08T10:00:00Z" },
+      { stage: "shortlisted", timestamp: "2026-08-12T16:00:00Z" },
+      { stage: "interview", timestamp: "2026-08-15T11:00:00Z" },
+      { stage: "selected", timestamp: "2026-08-22T14:00:00Z", note: "Offer extended — ₹28 LPA" },
+    ],
+    appliedAt: "2026-08-06T14:00:00Z",
+  },
+  {
+    id: "app5",
+    studentId: "s12",
+    opportunityId: "opp8",
+    currentStage: "shortlisted",
+    stageHistory: [
+      { stage: "applied", timestamp: "2026-08-09T09:00:00Z" },
+      { stage: "under-review", timestamp: "2026-08-11T13:00:00Z" },
+      { stage: "shortlisted", timestamp: "2026-08-15T10:00:00Z" },
+    ],
+    appliedAt: "2026-08-09T09:00:00Z",
+  },
+  {
+    id: "app6",
+    studentId: "s5",
+    opportunityId: "opp2",
+    currentStage: "applied",
+    stageHistory: [
+      { stage: "applied", timestamp: "2026-08-20T16:00:00Z" },
+    ],
+    appliedAt: "2026-08-20T16:00:00Z",
+  },
+];
+
+// ── Mock Learning Paths ──────────────────────────────────────────────
+
+export const mockLearningPaths: LearningPath[] = [
+  { id: "lp1", title: "React - The Complete Guide (incl. Next.js)", provider: "Udemy", url: "https://udemy.com/react-complete-guide", skillIds: ["react", "nextjs"], duration: "48 hours", level: "intermediate", rating: 4.7 },
+  { id: "lp2", title: "TypeScript for Professionals", provider: "Udemy", url: "https://udemy.com/typescript-pro", skillIds: ["typescript"], duration: "12 hours", level: "intermediate", rating: 4.8 },
+  { id: "lp3", title: "Machine Learning Specialization", provider: "Coursera", url: "https://coursera.org/ml-specialization", skillIds: ["machine-learning", "python"], duration: "80 hours", level: "intermediate", rating: 4.9 },
+  { id: "lp4", title: "Deep Learning with PyTorch", provider: "NPTEL", url: "https://nptel.ac.in/deep-learning-pytorch", skillIds: ["deep-learning", "pytorch"], duration: "40 hours", level: "advanced", rating: 4.5 },
+  { id: "lp5", title: "AWS Solutions Architect Prep", provider: "Udemy", url: "https://udemy.com/aws-sa-prep", skillIds: ["aws", "cloud"], duration: "30 hours", level: "intermediate", rating: 4.6 },
+  { id: "lp6", title: "Docker & Kubernetes: The Practical Guide", provider: "Udemy", url: "https://udemy.com/docker-k8s", skillIds: ["docker", "kubernetes"], duration: "24 hours", level: "intermediate", rating: 4.7 },
+  { id: "lp7", title: "System Design Interview", provider: "Educative", url: "https://educative.io/system-design", skillIds: ["system-design"], duration: "20 hours", level: "advanced", rating: 4.8 },
+  { id: "lp8", title: "NLP Specialization", provider: "Coursera", url: "https://coursera.org/nlp-specialization", skillIds: ["nlp", "python"], duration: "60 hours", level: "intermediate", rating: 4.6 },
+  { id: "lp9", title: "DSA in JavaScript", provider: "NPTEL", url: "https://nptel.ac.in/dsa-js", skillIds: ["dsa", "javascript"], duration: "35 hours", level: "beginner", rating: 4.4 },
+  { id: "lp10", title: "Terraform Up & Running", provider: "Udemy", url: "https://udemy.com/terraform", skillIds: ["terraform", "aws"], duration: "16 hours", level: "intermediate", rating: 4.5 },
+  { id: "lp11", title: "React Native - Build Mobile Apps", provider: "Udemy", url: "https://udemy.com/react-native", skillIds: ["react-native", "javascript"], duration: "28 hours", level: "intermediate", rating: 4.6 },
+  { id: "lp12", title: "SQL for Data Science", provider: "Coursera", url: "https://coursera.org/sql-data-science", skillIds: ["sql"], duration: "15 hours", level: "beginner", rating: 4.5 },
+];
+
+// ── Helper Functions ─────────────────────────────────────────────────
+
+export function getStudentBySlug(slug: string): Student | undefined {
+  return mockStudents.find((s) => s.slug === slug);
 }
 
-// ── Select fragments ──────────────────────────────────────────────────
-// Declared once so the row types in database.types.ts and the actual
-// selected columns cannot drift apart.
-
-const STUDENT_SELECT = `
-  id, degree, field, institution, year, gpa, bio, onboarding_complete,
-  profiles!inner ( id, role, name, slug, email, avatar ),
-  student_skills ( skill_id, level, verification, verified_at, verified_by, skills ( name, domain ) ),
-  projects ( id, title, description, tech_stack, url, verified ),
-  certifications ( id, name, issuer, date, verified ),
-  assessments ( id, skill_id, score, max_score, level, date, skills ( name ) )
-` as const;
-
-const OPPORTUNITY_SELECT = `
-  id, title, company_id, recruiter_id, domain, description, eligibility,
-  location, type, duration, compensation, deadline, posted_at, active,
-  opportunity_skills ( skill_id, required_level, preferred, skills ( name ) )
-` as const;
-
-const OPPORTUNITY_WITH_COMPANY_SELECT = `
-  ${OPPORTUNITY_SELECT},
-  companies ( id, name, logo, industry, size, location )
-` as const;
-
-const APPLICATION_SELECT = `
-  id, student_id, opportunity_id, current_stage, applied_at,
-  application_stage_history ( stage, occurred_at, note )
-` as const;
-
-// ── Row → domain mappers ──────────────────────────────────────────────
-
-function toSkillTaxonomyItem(row: SkillRow): SkillTaxonomyItem {
-  return {
-    id: row.id,
-    name: row.name,
-    domain: row.domain,
-    marketDemand: row.market_demand,
-  };
+export function getStudentById(id: string): Student | undefined {
+  return mockStudents.find((s) => s.id === id);
 }
 
-function toSkill(row: StudentSkillRow): Skill {
-  return {
-    id: row.skill_id,
-    // Fall back to the id when the catalog join is missing, so a skill row
-    // never renders as a blank chip.
-    name: row.skills?.name ?? row.skill_id,
-    domain: row.skills?.domain ?? "general",
-    level: toSkillLevel(row.level),
-    verification: row.verification,
-    ...(row.verified_at ? { verifiedAt: row.verified_at } : {}),
-    ...(row.verified_by ? { verifiedBy: row.verified_by } : {}),
-  };
+export function getCompanyById(id: string): Company | undefined {
+  return mockCompanies.find((c) => c.id === id);
 }
 
-function toProject(row: ProjectRow): Project {
-  return {
-    id: row.id,
-    title: row.title,
-    description: row.description,
-    techStack: row.tech_stack,
-    ...(row.url ? { url: row.url } : {}),
-    verified: row.verified,
-  };
+export function getOpportunityById(id: string): Opportunity | undefined {
+  return mockOpportunities.find((o) => o.id === id);
 }
 
-function toCertification(row: CertificationRow): Certification {
-  return {
-    id: row.id,
-    name: row.name,
-    // issuer and date are nullable: a CV often names a certification with
-    // neither. Omitting the key keeps `Certification` honest instead of
-    // inventing an empty string.
-    ...(row.issuer ? { issuer: row.issuer } : {}),
-    ...(row.date ? { date: row.date } : {}),
-    verified: row.verified,
-  };
+export function getRecruiterBySlug(slug: string): Recruiter | undefined {
+  return mockRecruiters.find((r) => r.slug === slug);
 }
 
-function toAssessment(row: AssessmentRow): Assessment {
-  return {
-    id: row.id,
-    // skill_id is nullable in the schema (a skill can be deleted out from
-    // under an assessment), but Assessment.skillId is not. "" reads as
-    // "unknown skill" and matches the fallback used for the name.
-    skillId: row.skill_id ?? "",
-    skillName: row.skills?.name ?? row.skill_id ?? "",
-    score: row.score,
-    maxScore: row.max_score,
-    level: toSkillLevel(row.level),
-    date: row.date,
-  };
+export function getRecruiterById(id: string): Recruiter | undefined {
+  return mockRecruiters.find((r) => r.id === id);
 }
 
-/**
- * Every education column is nullable — a student has a row from the moment
- * they sign up and does not fill these in until onboarding completes — so a
- * missing value omits the key rather than inventing "" or year 0.
- */
-function toEducation(row: StudentRow): Education {
-  return {
-    ...(row.degree ? { degree: row.degree } : {}),
-    ...(row.field ? { field: row.field } : {}),
-    ...(row.institution ? { institution: row.institution } : {}),
-    ...(row.year ? { year: Number(row.year) } : {}),
-    ...(row.gpa === null || row.gpa === undefined ? {} : { gpa: Number(row.gpa) }),
-  };
+export function getApplicationsByStudentId(studentId: string): Application[] {
+  return mockApplications.filter((a) => a.studentId === studentId);
 }
 
-function toStudent(row: StudentRow): Student {
-  const profile = row.profiles;
-
-  return {
-    id: row.id,
-    name: profile?.name ?? "",
-    slug: profile?.slug ?? "",
-    email: profile?.email ?? "",
-    ...(profile?.avatar ? { avatar: profile.avatar } : {}),
-    education: toEducation(row),
-    skills: row.student_skills.map(toSkill),
-    projects: row.projects.map(toProject),
-    certifications: row.certifications.map(toCertification),
-    assessments: row.assessments.map(toAssessment),
-    onboardingComplete: row.onboarding_complete,
-    ...(row.bio ? { bio: row.bio } : {}),
-  };
+export function getApplicationsByOpportunityId(opportunityId: string): Application[] {
+  return mockApplications.filter((a) => a.opportunityId === opportunityId);
 }
 
-function toCompany(row: CompanyRow): Company {
-  return {
-    id: row.id,
-    name: row.name,
-    ...(row.logo ? { logo: row.logo } : {}),
-    industry: row.industry,
-    size: row.size,
-    location: row.location,
-  };
+export function getApplicationById(id: string): Application | undefined {
+  return mockApplications.find((a) => a.id === id);
 }
 
-function toRecruiter(row: RecruiterRow): Recruiter {
-  const profile = row.profiles;
-
-  return {
-    id: row.id,
-    name: profile?.name ?? "",
-    slug: profile?.slug ?? "",
-    email: profile?.email ?? "",
-    companyId: row.company_id ?? "",
-    ...(profile?.avatar ? { avatar: profile.avatar } : {}),
-  };
+export function getOpportunitiesByRecruiterId(recruiterId: string): Opportunity[] {
+  return mockOpportunities.filter((o) => o.recruiterId === recruiterId);
 }
 
-function toSkillRequirement(row: OpportunitySkillRow): OpportunitySkillRequirement {
-  return {
-    skillId: row.skill_id,
-    skillName: row.skills?.name ?? row.skill_id,
-    requiredLevel: toSkillLevel(row.required_level),
-    preferred: row.preferred,
-  };
-}
-
-function toOpportunity(row: OpportunityRow): Opportunity {
-  return {
-    id: row.id,
-    title: row.title,
-    // company_id, recruiter_id and deadline are nullable in the schema
-    // (both FKs are ON DELETE SET NULL) but non-optional on Opportunity.
-    // "" keeps the card rendering; an unresolved companyId simply yields
-    // `company: undefined`, which OpportunityCard already handles.
-    companyId: row.company_id ?? "",
-    domain: row.domain,
-    description: row.description,
-    // `preferred` on the join row is what splits these two lists.
-    requiredSkills: row.opportunity_skills.filter((s) => !s.preferred).map(toSkillRequirement),
-    preferredSkills: row.opportunity_skills.filter((s) => s.preferred).map(toSkillRequirement),
-    eligibility: row.eligibility,
-    location: row.location,
-    type: row.type,
-    ...(row.duration ? { duration: row.duration } : {}),
-    compensation: row.compensation,
-    deadline: row.deadline ?? "",
-    postedAt: row.posted_at,
-    recruiterId: row.recruiter_id ?? "",
-    active: row.active,
-  };
-}
-
-function toStageEntry(row: ApplicationRow["application_stage_history"][number]): ApplicationStageEntry {
-  return {
-    stage: row.stage,
-    timestamp: row.occurred_at,
-    ...(row.note ? { note: row.note } : {}),
-  };
-}
-
-function toApplication(row: ApplicationRow): Application {
-  return {
-    id: row.id,
-    studentId: row.student_id,
-    opportunityId: row.opportunity_id,
-    currentStage: row.current_stage,
-    stageHistory: [...row.application_stage_history]
-      .map(toStageEntry)
-      .sort((a, b) => a.timestamp.localeCompare(b.timestamp)),
-    appliedAt: row.applied_at,
-  };
-}
-
-function toLearningPath(row: LearningPathRow, skillIds: string[]): LearningPath {
-  return {
-    id: row.id,
-    title: row.title,
-    provider: row.provider,
-    url: row.url,
-    skillIds,
-    duration: row.duration,
-    level: row.level,
-    rating: Number(row.rating),
-  };
-}
-
-// ── Skill taxonomy ────────────────────────────────────────────────────
-
-/** The full skill catalog, ordered by market demand. */
-export async function getSkillTaxonomy(): Promise<SkillTaxonomyItem[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("skills")
-    .select("id, name, domain, market_demand")
-    .order("market_demand", { ascending: false })
-    .returns<SkillRow[]>();
-
-  if (error) throw new DataError("the skill catalog", error);
-  return data.map(toSkillTaxonomyItem);
-}
-
-export async function getSkillTaxonomyItem(
-  skillId: string
-): Promise<SkillTaxonomyItem | undefined> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("skills")
-    .select("id, name, domain, market_demand")
-    .eq("id", skillId)
-    .maybeSingle<SkillRow>();
-
-  if (error) throw new DataError("that skill", error);
-  return data ? toSkillTaxonomyItem(data) : undefined;
-}
-
-// ── Students ──────────────────────────────────────────────────────────
-
-export async function getStudentBySlug(slug: string): Promise<Student | undefined> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("students")
-    .select(STUDENT_SELECT)
-    .eq("profiles.slug", slug)
-    .maybeSingle<StudentRow>();
-
-  if (error) throw new DataError("that student profile", error);
-  return data ? toStudent(data) : undefined;
-}
-
-export async function getStudentById(id: string): Promise<Student | undefined> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("students")
-    .select(STUDENT_SELECT)
-    .eq("id", id)
-    .maybeSingle<StudentRow>();
-
-  if (error) throw new DataError("that student profile", error);
-  return data ? toStudent(data) : undefined;
-}
-
-/**
- * Every student who has finished onboarding — the recruiter-side talent pool.
- * RLS restricts this to recruiters; a student calling it sees only themselves.
- */
-export async function getStudents(): Promise<Student[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("students")
-    .select(STUDENT_SELECT)
-    .eq("onboarding_complete", true)
-    .returns<StudentRow[]>();
-
-  if (error) throw new DataError("the talent pool", error);
-  return data.map(toStudent);
-}
-
-/**
- * Specific students by id, regardless of onboarding state.
- *
- * The applicant views resolve their candidates through this rather than
- * through getStudents(): an application is a fact about a student, and
- * filtering the lookup on `onboarding_complete` would silently drop a row
- * from a recruiter's pipeline.
- */
-export async function getStudentsByIds(ids: string[]): Promise<Student[]> {
-  if (ids.length === 0) return [];
-
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("students")
-    .select(STUDENT_SELECT)
-    .in("id", ids)
-    .returns<StudentRow[]>();
-
-  if (error) throw new DataError("those candidates", error);
-  return data.map(toStudent);
-}
-
-// ── Companies & recruiters ────────────────────────────────────────────
-
-export async function getCompanies(): Promise<Company[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("companies")
-    .select("id, name, logo, industry, size, location")
-    .order("name")
-    .returns<CompanyRow[]>();
-
-  if (error) throw new DataError("companies", error);
-  return data.map(toCompany);
-}
-
-const RECRUITER_SELECT = `
-  id, company_id,
-  profiles!inner ( id, role, name, slug, email, avatar )
-` as const;
-
-export async function getRecruiterBySlug(slug: string): Promise<Recruiter | undefined> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("recruiters")
-    .select(RECRUITER_SELECT)
-    .eq("profiles.slug", slug)
-    .maybeSingle<RecruiterRow>();
-
-  if (error) throw new DataError("that recruiter profile", error);
-  return data ? toRecruiter(data) : undefined;
-}
-
-export async function getRecruiterById(id: string): Promise<Recruiter | undefined> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("recruiters")
-    .select(RECRUITER_SELECT)
-    .eq("id", id)
-    .maybeSingle<RecruiterRow>();
-
-  if (error) throw new DataError("that recruiter profile", error);
-  return data ? toRecruiter(data) : undefined;
-}
-
-// ── Opportunities ─────────────────────────────────────────────────────
-
-/** All active postings, newest first. */
-export async function getOpportunities(): Promise<Opportunity[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("opportunities")
-    .select(OPPORTUNITY_SELECT)
-    .eq("active", true)
-    .order("posted_at", { ascending: false })
-    .returns<OpportunityRow[]>();
-
-  if (error) throw new DataError("opportunities", error);
-  return data.map(toOpportunity);
-}
-
-/**
- * Active postings with their company joined in.
- *
- * OpportunityCard needs the company name while rendering. Joining it here
- * keeps that lookup synchronous at the call site and avoids one query per
- * card, which is why getCompanyById no longer exists.
- */
-export async function getOpportunitiesWithCompany(): Promise<
-  { opportunity: Opportunity; company: Company | undefined }[]
-> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("opportunities")
-    .select(OPPORTUNITY_WITH_COMPANY_SELECT)
-    .eq("active", true)
-    .order("posted_at", { ascending: false })
-    .returns<OpportunityWithCompanyRow[]>();
-
-  if (error) throw new DataError("opportunities", error);
-
-  return data.map((row) => ({
-    opportunity: toOpportunity(row),
-    company: row.companies ? toCompany(row.companies) : undefined,
-  }));
-}
-
-export async function getOpportunityById(id: string): Promise<Opportunity | undefined> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("opportunities")
-    .select(OPPORTUNITY_SELECT)
-    .eq("id", id)
-    .maybeSingle<OpportunityRow>();
-
-  if (error) throw new DataError("that opportunity", error);
-  return data ? toOpportunity(data) : undefined;
-}
-
-/**
- * Specific opportunities with their company, active or not.
- *
- * Application history outlives the posting it points at, so the tracking
- * views cannot use getOpportunitiesWithCompany — that one filters on
- * `active` and would render an applied-to role that has since closed as a
- * blank card.
- */
-export async function getOpportunitiesByIds(
-  ids: string[]
-): Promise<{ opportunity: Opportunity; company: Company | undefined }[]> {
-  if (ids.length === 0) return [];
-
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("opportunities")
-    .select(OPPORTUNITY_WITH_COMPANY_SELECT)
-    .in("id", ids)
-    .returns<OpportunityWithCompanyRow[]>();
-
-  if (error) throw new DataError("those opportunities", error);
-
-  return data.map((row) => ({
-    opportunity: toOpportunity(row),
-    company: row.companies ? toCompany(row.companies) : undefined,
-  }));
-}
-
-export async function getOpportunitiesByRecruiterId(
-  recruiterId: string
-): Promise<Opportunity[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("opportunities")
-    .select(OPPORTUNITY_SELECT)
-    .eq("recruiter_id", recruiterId)
-    .order("posted_at", { ascending: false })
-    .returns<OpportunityRow[]>();
-
-  if (error) throw new DataError("your opportunities", error);
-  return data.map(toOpportunity);
-}
-
-// ── Applications ──────────────────────────────────────────────────────
-
-export async function getApplicationsByStudentId(
-  studentId: string
-): Promise<Application[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("applications")
-    .select(APPLICATION_SELECT)
-    .eq("student_id", studentId)
-    .order("applied_at", { ascending: false })
-    .returns<ApplicationRow[]>();
-
-  if (error) throw new DataError("your applications", error);
-  return data.map(toApplication);
-}
-
-export async function getApplicationById(id: string): Promise<Application | undefined> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("applications")
-    .select(APPLICATION_SELECT)
-    .eq("id", id)
-    .maybeSingle<ApplicationRow>();
-
-  if (error) throw new DataError("that application", error);
-  return data ? toApplication(data) : undefined;
-}
-
-export async function getApplicationsByOpportunityId(
-  opportunityId: string
-): Promise<Application[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("applications")
-    .select(APPLICATION_SELECT)
-    .eq("opportunity_id", opportunityId)
-    .order("applied_at", { ascending: false })
-    .returns<ApplicationRow[]>();
-
-  if (error) throw new DataError("applications for this role", error);
-  return data.map(toApplication);
-}
-
-/** Every application across a set of opportunities — the recruiter pipeline. */
-export async function getApplicationsByOpportunityIds(
-  opportunityIds: string[]
-): Promise<Application[]> {
-  if (opportunityIds.length === 0) return [];
-
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("applications")
-    .select(APPLICATION_SELECT)
-    .in("opportunity_id", opportunityIds)
-    .order("applied_at", { ascending: false })
-    .returns<ApplicationRow[]>();
-
-  if (error) throw new DataError("your applicants", error);
-  return data.map(toApplication);
-}
-
-// ── Application writes ────────────────────────────────────────────────
-// Both of these call a SECURITY DEFINER function rather than writing the
-// tables directly. That is the whole mechanism for stage history: the
-// function updates the application and appends exactly one timeline entry in
-// the same transaction, and the client has no INSERT grant on
-// application_stage_history at all — so a duplicate or forged entry is not
-// something the UI can produce even by accident.
-
-/** Thrown when a write is rejected by the database's own rules. */
-export class WriteError extends Error {
-  constructor(message: string, cause?: unknown) {
-    super(message);
-    this.name = "WriteError";
-    this.cause = cause;
-  }
-}
-
-interface ApplicationRpcRow {
-  id: string;
-  student_id: string;
-  opportunity_id: string;
-  current_stage: ApplicationStage;
-  applied_at: string;
-}
-
-/**
- * Maps the Postgres error codes the two functions raise onto messages that
- * can be shown to a user as-is.
- */
-function toWriteError(
-  error: { code?: string; message?: string } | null,
-  fallback: string
-): WriteError {
-  const code = error?.code;
-
-  if (code === "23505") {
-    return new WriteError("You have already applied to this role.", error);
-  }
-  if (code === "42501") {
-    return new WriteError(
-      error?.message ?? "You are not allowed to do that.",
-      error
-    );
-  }
-  if (code === "P0002") {
-    return new WriteError(error?.message ?? "That record no longer exists.", error);
-  }
-  if (code === "22023") {
-    return new WriteError(error?.message ?? "That change is not allowed.", error);
-  }
-  return new WriteError(fallback, error);
-}
-
-/** Submits an application for the signed-in student. */
-export async function applyToOpportunity(opportunityId: string): Promise<Application> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .rpc("apply_to_opportunity", { p_opportunity_id: opportunityId })
-    .returns<ApplicationRpcRow>();
-
-  if (error || !data) {
-    throw toWriteError(error, "Could not submit your application. Please try again.");
-  }
-
-  return {
-    id: data.id,
-    studentId: data.student_id,
-    opportunityId: data.opportunity_id,
-    currentStage: data.current_stage,
-    stageHistory: [{ stage: data.current_stage, timestamp: data.applied_at }],
-    appliedAt: data.applied_at,
-  };
-}
-
-/**
- * Moves an application to a new stage.
- *
- * Authorisation lives in the database: the owning recruiter may set any
- * stage, the applying student may only withdraw, and a closed application
- * refuses every transition.
- */
-export async function setApplicationStage(
-  applicationId: string,
-  stage: ApplicationStage,
-  note?: string
-): Promise<{ currentStage: ApplicationStage }> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .rpc("set_application_stage", {
-      p_application_id: applicationId,
-      p_stage: stage,
-      p_note: note?.trim() ? note.trim() : null,
-    })
-    .returns<ApplicationRpcRow>();
-
-  if (error || !data) {
-    throw toWriteError(error, "Could not update the application. Please try again.");
-  }
-
-  return { currentStage: data.current_stage };
-}
-
-// ── Learning paths ────────────────────────────────────────────────────
-
-const LEARNING_PATH_SELECT =
-  "id, title, provider, url, duration, level, rating, learning_path_skills ( skill_id )" as const;
-
-type LearningPathWithSkillsRow = LearningPathRow & {
-  learning_path_skills: { skill_id: string }[];
-};
-
-/** The whole learning-path catalog, best-rated first. */
-export async function getLearningPaths(): Promise<LearningPath[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("learning_paths")
-    .select(LEARNING_PATH_SELECT)
-    .order("rating", { ascending: false })
-    .returns<LearningPathWithSkillsRow[]>();
-
-  if (error) throw new DataError("learning paths", error);
-
-  return data.map((row) =>
-    toLearningPath(
-      row,
-      row.learning_path_skills.map((s) => s.skill_id)
-    )
+export function getLearningPathsForSkills(skillIds: string[]): LearningPath[] {
+  return mockLearningPaths.filter((lp) =>
+    lp.skillIds.some((sid) => skillIds.includes(sid))
   );
 }
 
-/**
- * Learning paths covering any of `skillIds`.
- *
- * Two queries rather than one: the first finds the matching path ids, the
- * second loads those paths with their *complete* skill list, so a path that
- * teaches three skills still reports all three even when only one matched.
- */
-export async function getLearningPathsForSkills(
-  skillIds: string[]
-): Promise<LearningPath[]> {
-  if (skillIds.length === 0) return [];
-
-  const supabase = createClient();
-
-  const { data: matches, error: matchError } = await supabase
-    .from("learning_path_skills")
-    .select("learning_path_id")
-    .in("skill_id", skillIds)
-    .returns<{ learning_path_id: string }[]>();
-
-  if (matchError) throw new DataError("learning paths", matchError);
-
-  const pathIds = [...new Set(matches.map((m) => m.learning_path_id))];
-  if (pathIds.length === 0) return [];
-
-  const { data: paths, error: pathError } = await supabase
-    .from("learning_paths")
-    .select(LEARNING_PATH_SELECT)
-    .in("id", pathIds)
-    .order("rating", { ascending: false })
-    .returns<LearningPathWithSkillsRow[]>();
-
-  if (pathError) throw new DataError("learning paths", pathError);
-
-  return paths.map((row) =>
-    toLearningPath(
-      row,
-      row.learning_path_skills.map((s) => s.skill_id)
-    )
-  );
+export function getSkillTaxonomyItem(skillId: string): SkillTaxonomyItem | undefined {
+  return skillTaxonomy.find((s) => s.id === skillId);
 }
