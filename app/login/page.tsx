@@ -8,10 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRole } from "@/lib/role-context";
 import type { UserRole } from "@/lib/types";
-import { createClient } from "@/lib/supabase/client";  
+import { createClient } from "@/lib/supabase/client";
 
 // ── Login / Sign Up ──────────────────────────────────────────────────
 // Real Supabase email+password auth. The demo buttons sign in to the two
@@ -23,7 +22,7 @@ const DEMO_ACCOUNTS: Record<UserRole, { email: string; password: string }> = {
   recruiter: { email: "demo.recruiter@nextgig.dev", password: "demo-password-123" },
 };
 
-type PendingAction = "demo-student" | "demo-recruiter" | "login" | "signup" | "github";   
+type PendingAction = "demo-student" | "demo-recruiter" | "login" | "signup" | "github";
 
 export default function LoginPage() {
   const { login, signUp } = useRole();
@@ -126,6 +125,22 @@ export default function LoginPage() {
 
   const isBusy = pending !== null;
 
+  // Inline style for eye toggle — immune to Tailwind purging & Base UI specificity
+  const eyeBtn: React.CSSProperties = {
+    position: "absolute",
+    top: "50%",
+    right: "10px",
+    transform: "translateY(-50%)",
+    display: "flex",
+    alignItems: "center",
+    background: "none",
+    border: "none",
+    padding: 0,
+    cursor: "pointer",
+    opacity: 0.5,
+    color: "inherit",
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <motion.div
@@ -133,6 +148,7 @@ export default function LoginPage() {
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-md space-y-6"
       >
+        {/* ── Header ──────────────────────────────────────────────── */}
         <div className="text-center">
           <div className="w-12 h-12 rounded-xl bg-[var(--ng-primary)] flex items-center justify-center mx-auto mb-4">
             <span className="text-white font-bold text-lg">N</span>
@@ -144,29 +160,56 @@ export default function LoginPage() {
         </div>
 
         <Card>
-          <CardContent className="pt-6">
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")}>
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="login">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Create Account</TabsTrigger>
-              </TabsList>
+          <CardContent className="p-6">
 
-              <TabsContent value="login">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div>
-                    <Label htmlFor="login-email" className="text-xs mb-1.5 block">Email</Label>
-                    <Input
-                      id="login-email"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder="you@example.com"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="login-password" className="text-xs mb-1.5 block">Password</Label>
+            {/* ── Custom Tab Bar (plain buttons, no Base UI height constraints) */}
+            <div className="flex rounded-lg bg-muted p-1 mb-6">
+              <button
+                type="button"
+                onClick={() => setActiveTab("login")}
+                className={[
+                  "flex-1 rounded-md py-2 text-sm font-medium transition-all",
+                  activeTab === "login"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                ].join(" ")}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("signup")}
+                className={[
+                  "flex-1 rounded-md py-2 text-sm font-medium transition-all",
+                  activeTab === "signup"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                ].join(" ")}
+              >
+                Create Account
+              </button>
+            </div>
+
+            {/* ── Sign In Form ─────────────────────────────────────── */}
+            {activeTab === "login" && (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <Label htmlFor="login-email" className="text-xs mb-1.5 block">Email</Label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="login-password" className="text-xs mb-1.5 block">
+                    Password
+                  </Label>
+                  <div style={{ position: "relative" }}>
                     <Input
                       id="login-password"
                       type={showLoginPassword ? "text" : "password"}
@@ -174,63 +217,65 @@ export default function LoginPage() {
                       autoComplete="current-password"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
+                      className="pr-9"
                     />
                     <button
                       type="button"
                       aria-label={showLoginPassword ? "Hide password" : "Show password"}
-                      onClick={() => setShowLoginPassword((visible) => !visible)}
-                      className="relative float-right -mt-6 mr-3 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowLoginPassword((v) => !v)}
+                      style={eyeBtn}
                     >
                       {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                </div>
 
-                  <Button type="submit" className="w-full" disabled={isBusy}>
-                    {pending === "login" ? "Signing in..." : "Sign In"}
-                  </Button>
+                <Button type="submit" className="w-full" disabled={isBusy}>
+                  {pending === "login" ? "Signing in..." : "Sign In"}
+                </Button>
 
-                  {/* ✅ GitHub OAuth button */}
-                  <div className="mt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full h-11 rounded-lg"
-                      onClick={handleGitHubLogin}
-                      disabled={isBusy}
-                    >
-                      Continue with GitHub
-                    </Button>
-                  </div>
-                </form>
-              </TabsContent>
+                {/* ✅ GitHub OAuth button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-11 rounded-lg"
+                  onClick={handleGitHubLogin}
+                  disabled={isBusy}
+                >
+                  Continue with GitHub
+                </Button>
+              </form>
+            )}
 
-              <TabsContent value="signup">
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div>
-                    <Label htmlFor="signup-name" className="text-xs mb-1.5 block">Full Name</Label>
-                    <Input
-                      id="signup-name"
-                      required
-                      autoComplete="name"
-                      value={signupName}
-                      onChange={(e) => setSignupName(e.target.value)}
-                      placeholder="Your name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="signup-email" className="text-xs mb-1.5 block">Email</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      value={signupEmail}
-                      onChange={(e) => setSignupEmail(e.target.value)}
-                      placeholder="you@example.com"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="signup-password" className="text-xs mb-1.5 block">Password</Label>
+            {/* ── Create Account Form ──────────────────────────────── */}
+            {activeTab === "signup" && (
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div>
+                  <Label htmlFor="signup-name" className="text-xs mb-1.5 block">Full Name</Label>
+                  <Input
+                    id="signup-name"
+                    required
+                    autoComplete="name"
+                    value={signupName}
+                    onChange={(e) => setSignupName(e.target.value)}
+                    placeholder="Your name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="signup-email" className="text-xs mb-1.5 block">Email</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={signupEmail}
+                    onChange={(e) => setSignupEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="signup-password" className="text-xs mb-1.5 block">Password</Label>
+                  <div style={{ position: "relative" }}>
                     <Input
                       id="signup-password"
                       type={showSignupPassword ? "text" : "password"}
@@ -240,43 +285,45 @@ export default function LoginPage() {
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
                       placeholder="8+ chars, upper/lowercase, and a number"
+                      className="pr-9"
                     />
                     <button
                       type="button"
                       aria-label={showSignupPassword ? "Hide password" : "Show password"}
-                      onClick={() => setShowSignupPassword((visible) => !visible)}
-                      className="relative float-right -mt-6 mr-3 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowSignupPassword((v) => !v)}
+                      style={eyeBtn}
                     >
                       {showSignupPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
-                  <div>
-                    <Label className="text-xs mb-1.5 block">I am a</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant={signupRole === "student" ? "default" : "outline"}
-                        onClick={() => setSignupRole("student")}
-                        className="w-full"
-                      >
-                        Student
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={signupRole === "recruiter" ? "default" : "outline"}
-                        onClick={() => setSignupRole("recruiter")}
-                        className="w-full"
-                      >
-                        Recruiter
-                      </Button>
-                    </div>
+                </div>
+                <div>
+                  <Label className="text-xs mb-1.5 block">I am a</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={signupRole === "student" ? "default" : "outline"}
+                      onClick={() => setSignupRole("student")}
+                      className="w-full"
+                    >
+                      Student
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={signupRole === "recruiter" ? "default" : "outline"}
+                      onClick={() => setSignupRole("recruiter")}
+                      className="w-full"
+                    >
+                      Recruiter
+                    </Button>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isBusy}>
-                    {pending === "signup" ? "Creating account..." : "Create Account"}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
+                </div>
+                <Button type="submit" className="w-full" disabled={isBusy}>
+                  {pending === "signup" ? "Creating account..." : "Create Account"}
+                </Button>
+              </form>
+            )}
+
           </CardContent>
         </Card>
 
