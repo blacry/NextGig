@@ -202,7 +202,7 @@ export default function ReviewPage() {
               {profile.skills.map((skill, i) => (
                 <motion.div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}>
                   <div className="flex-1 min-w-0">
-                    <Input value={skill.name} onChange={(e) => updateSkillName(i, e.target.value)} className="h-7 text-sm max-w-xs" aria-label={`Skill ${i + 1} name`} />
+                    <Input value={skill.name ?? ""} onChange={(e) => updateSkillName(i, e.target.value)} className="h-7 text-sm max-w-xs" aria-label={`Skill ${i + 1} name`} />
                     <Badge variant="outline" className="ml-2 text-[9px] h-auto min-h-0 min-w-0 py-0 px-1">{skill.domain}</Badge>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -224,7 +224,7 @@ export default function ReviewPage() {
             {profile.projects.map((project, i) => (
               <div key={i} className="p-3 rounded-lg bg-muted/50 mb-2 space-y-2">
                 <div className="flex gap-2"><Input value={project.title} onChange={(e) => updateProject(i, "title", e.target.value)} placeholder="Project name" /><Button variant="ghost" size="sm" onClick={() => removeProject(i)} aria-label="Remove project"><Trash2 size={15} /></Button></div>
-                <Input value={project.description} onChange={(e) => updateProject(i, "description", e.target.value)} placeholder="What did you build?" />
+                <Input value={project.description ?? ""} onChange={(e) => updateProject(i, "description", e.target.value)} placeholder="What did you build?" />
                 <Input value={project.url ?? ""} onChange={(e) => updateProject(i, "url", e.target.value)} placeholder="Project or repository URL (optional)" />
               </div>
             ))}
@@ -238,9 +238,9 @@ export default function ReviewPage() {
               <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">Certifications ({profile.certifications.length})</h3>
               {profile.certifications.map((cert, i) => (
                 <div key={i} className="p-3 rounded-lg bg-muted/50 mb-2 grid grid-cols-1 md:grid-cols-[1fr_1fr_140px_auto] gap-2 items-center">
-                  <Input value={cert.name} onChange={(e) => updateCertification(i, "name", e.target.value)} placeholder="Certification name" />
-                  <Input value={cert.issuer} onChange={(e) => updateCertification(i, "issuer", e.target.value)} placeholder="Issuer" />
-                  <Input value={cert.date} onChange={(e) => updateCertification(i, "date", e.target.value)} placeholder="Date" />
+                  <Input value={cert.name ?? ""} onChange={(e) => updateCertification(i, "name", e.target.value)} placeholder="Certification name" />
+                  <Input value={cert.issuer ?? ""} onChange={(e) => updateCertification(i, "issuer", e.target.value)} placeholder="Issuer" />
+                  <Input value={cert.date ?? ""} onChange={(e) => updateCertification(i, "date", e.target.value)} placeholder="Date" />
                   <Button variant="ghost" size="sm" onClick={() => removeCertification(i)} aria-label="Remove certification"><Trash2 size={15} /></Button>
                 </div>
               ))}

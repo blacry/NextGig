@@ -53,23 +53,114 @@ async function chatComplete(
 
 function parseJSON<T>(raw: string, fallback: T): T {
   try {
-  
-    let cleaned = raw.trim();
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.slice(7);
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.slice(3);
+    if (!raw || typeof raw !== "string") {
+      return fallback;
     }
-    if (cleaned.endsWith("```")) {
-      cleaned = cleaned.slice(0, -3);
-    }
-    cleaned = cleaned.trim();
 
-    const parsed: unknown = JSON.parse(cleaned);
-    // Some compatible AI endpoints serialize the JSON object as a JSON string.
-    return (typeof parsed === "string" ? JSON.parse(parsed) : parsed) as T;
-  } catch {
-    console.error("[AI] Failed to parse JSON response:", raw.slice(0, 200));
+    let cleaned = raw.trim();
+
+    // Remove markdown code fences.
+    cleaned = cleaned
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+
+    // First attempt: response is already pure JSON.
+    try {
+      const parsed: unknown = JSON.parse(cleaned);
+
+      // Some providers return JSON encoded as a string.
+      if (typeof parsed === "string") {
+        return JSON.parse(parsed) as T;
+      }
+
+      return parsed as T;
+    } catch {
+      // Continue with extraction below.
+    }
+
+    // Find the beginning of a JSON object or array.
+    const firstArray = cleaned.indexOf("[");
+    const firstObject = cleaned.indexOf("{");
+
+    let start = -1;
+
+    if (firstArray === -1) {
+      start = firstObject;
+    } else if (firstObject === -1) {
+      start = firstArray;
+    } else {
+      start = Math.min(firstArray, firstObject);
+    }
+
+    if (start === -1) {
+      throw new Error("No JSON object or array found.");
+    }
+
+    // Find the matching closing bracket while respecting strings.
+    const opening = cleaned[start];
+    const closing = opening === "[" ? "]" : "}";
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = -1;
+
+    for (let i = start; i < cleaned.length; i++) {
+      const char = cleaned[i];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\" && inString) {
+        escaped = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) {
+        continue;
+      }
+
+      if (char === opening) {
+        depth++;
+      } else if (char === closing) {
+        depth--;
+
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+
+    if (end === -1) {
+      throw new Error("Incomplete JSON response.");
+    }
+
+    const extracted = cleaned.slice(start, end + 1);
+    const parsed: unknown = JSON.parse(extracted);
+
+    if (typeof parsed === "string") {
+      return JSON.parse(parsed) as T;
+    }
+
+    return parsed as T;
+  } catch (error) {
+    console.error(
+      "[AI] Failed to parse JSON response:",
+      error instanceof Error ? error.message : error
+    );
+
+    console.error("[AI] Raw response preview:", raw.slice(0, 1000));
+
     return fallback;
   }
 }
@@ -187,7 +278,7 @@ Certifications: ${JSON.stringify(parsedProfile.certifications || [])}`,
     },
   ];
 
-  const raw = await chatComplete(messages, { temperature: 0.4, maxTokens: 6000 });
+  const raw = await chatComplete(messages, { temperature: 0.2, maxTokens: 12000 });
 
   return parseJSON<AssessmentQuestion[]>(raw, []);
 }
