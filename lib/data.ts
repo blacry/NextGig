@@ -632,19 +632,21 @@ export async function applyToOpportunity(opportunityId: string): Promise<Applica
   const supabase = createClient();
   const { data, error } = await supabase
     .rpc("apply_to_opportunity", { p_opportunity_id: opportunityId })
-    .returns<ApplicationRpcRow>();
+    .single();
 
   if (error || !data) {
     throw toWriteError(error, "Could not submit your application. Please try again.");
   }
 
+  const row = data as ApplicationRpcRow;
+
   return {
-    id: data.id,
-    studentId: data.student_id,
-    opportunityId: data.opportunity_id,
-    currentStage: data.current_stage,
-    stageHistory: [{ stage: data.current_stage, timestamp: data.applied_at }],
-    appliedAt: data.applied_at,
+    id: row.id,
+    studentId: row.student_id,
+    opportunityId: row.opportunity_id,
+    currentStage: row.current_stage,
+    stageHistory: [{ stage: row.current_stage, timestamp: row.applied_at }],
+    appliedAt: row.applied_at,
   };
 }
 
@@ -667,13 +669,15 @@ export async function setApplicationStage(
       p_stage: stage,
       p_note: note?.trim() ? note.trim() : null,
     })
-    .returns<ApplicationRpcRow>();
+    .single();
 
   if (error || !data) {
     throw toWriteError(error, "Could not update the application. Please try again.");
   }
 
-  return { currentStage: data.current_stage };
+  const row = data as ApplicationRpcRow;
+
+  return { currentStage: row.current_stage };
 }
 
 // ── Learning paths ────────────────────────────────────────────────────

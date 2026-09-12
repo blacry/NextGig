@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/lib/role-context";
+import { useStudent } from "@/lib/student-context";
+import { useRecruiter } from "@/lib/recruiter-context";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
@@ -78,6 +80,31 @@ interface SidebarProps {
   variant: "student" | "recruiter";
 }
 
+function UserAvatar({ variant }: { variant: "student" | "recruiter" }) {
+  const { userName } = useRole();
+  const { student } = variant === "student" ? useStudent() : { student: null };
+  const { recruiter } = variant === "recruiter" ? useRecruiter() : { recruiter: null };
+
+  const avatar = variant === "student" ? student?.avatar : recruiter?.avatar;
+  const initial = userName?.charAt(0)?.toUpperCase() || "U";
+
+  if (avatar) {
+    return (
+      <img
+        src={avatar}
+        alt={userName || "User"}
+        className="w-8 h-8 rounded-full object-cover bg-[var(--ng-primary)]/10"
+      />
+    );
+  }
+
+  return (
+    <div className="w-8 h-8 rounded-full bg-[var(--ng-primary)]/10 flex items-center justify-center">
+      <span className="text-xs font-semibold text-[var(--ng-primary)]">{initial}</span>
+    </div>
+  );
+}
+
 export function Sidebar({ variant }: SidebarProps) {
   const { userSlug, userName, logout } = useRole();
   const pathname = usePathname();
@@ -132,11 +159,7 @@ export function Sidebar({ variant }: SidebarProps) {
       {/* User section */}
       <div className="px-3 py-4 border-t border-border">
         <div className="flex items-center gap-3 px-3 py-2 mb-2">
-          <div className="w-8 h-8 rounded-full bg-[var(--ng-primary)]/10 flex items-center justify-center">
-            <span className="text-xs font-semibold text-[var(--ng-primary)]">
-              {userName?.charAt(0)?.toUpperCase() || "U"}
-            </span>
-          </div>
+          <UserAvatar variant={variant} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{userName}</p>
             <p className="text-xs text-muted-foreground capitalize">{variant}</p>
