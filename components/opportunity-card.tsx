@@ -5,14 +5,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MatchScore } from "./match-score";
-import type { Opportunity, MatchResult } from "@/lib/types";
-import { getCompanyById } from "@/lib/data";
+import type { Company, Opportunity, MatchResult } from "@/lib/types";
 
 // ── Opportunity Card ─────────────────────────────────────────────────
 // Shows role, company, match %, key skills, CTA — all visible.
 
 interface OpportunityCardProps {
   opportunity: Opportunity;
+  /** Joined alongside the opportunity by the caller — see getOpportunitiesWithCompany. */
+  company?: Company;
   matchResult?: MatchResult;
   matchReason?: string;
   onViewDetails?: () => void;
@@ -22,14 +23,13 @@ interface OpportunityCardProps {
 
 export function OpportunityCard({
   opportunity,
+  company,
   matchResult,
   matchReason,
   onViewDetails,
   onApply,
   index = 0,
 }: OpportunityCardProps) {
-  const company = getCompanyById(opportunity.companyId);
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}

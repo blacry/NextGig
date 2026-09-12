@@ -27,7 +27,7 @@ export default function Home() {
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href="/login">
-            <Button size="lg" className="w-full sm:w-auto h-12 px-8 text-base shadow-lg shadow-[var(--ng-pr    imary)]/20 hover:shadow-[var(--ng-primary)]/40 transition-shadow">
+            <Button size="lg" className="w-full sm:w-auto h-12 px-8 text-base shadow-lg shadow-[var(--ng-primary)]/20 hover:shadow-[var(--ng-primary)]/40 transition-shadow">
               Get Started
             </Button>
           </Link>

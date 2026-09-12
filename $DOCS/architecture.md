@@ -2,7 +2,7 @@
 
 ## Architecture Overview
 
-NextGig is a frontend-only MVP built for the SIH 2026 hackathon. It uses a modern Next.js 14 stack (App Router) with React, TypeScript, and Tailwind CSS. The design system leverages Shadcn UI and Framer Motion for premium, animated interfaces.
+NextGig is a full stack MVP built for the SIH 2026 hackathon PS 26044. It uses a modern Next.js 14 stack (App Router) with React, TypeScript, and Tailwind CSS. The design system leverages Shadcn UI and Framer Motion for premium, animated interfaces.
 
 ### Core Stack
 - **Framework:** Next.js (App Router)

@@ -2,11 +2,9 @@ import OpenAI from "openai";
 import type {
   Skill,
   Student,
-  Opportunity,
   AssessmentQuestion,
   AssessmentAnswer,
   AssessmentResult,
-  SkillGrade,
   SkillLevel,
   ChatMessage,
 } from "./types";
@@ -67,14 +65,16 @@ function parseJSON<T>(raw: string, fallback: T): T {
     }
     cleaned = cleaned.trim();
 
-    return JSON.parse(cleaned) as T;
+    const parsed: unknown = JSON.parse(cleaned);
+    // Some compatible AI endpoints serialize the JSON object as a JSON string.
+    return (typeof parsed === "string" ? JSON.parse(parsed) : parsed) as T;
   } catch {
     console.error("[AI] Failed to parse JSON response:", raw.slice(0, 200));
     return fallback;
   }
 }
 
-export async function extractSkillsFromResume(text: string): Promise<{
+export async function extractSkillsFromResume(text: string, sources?: { githubUrl?: string; linkedinUrl?: string }, githubContext = ""): Promise<{
   name: string;
   email: string;
   bio: string;
@@ -118,7 +118,7 @@ Valid domains: frontend, backend, data-ai, cloud, devops, mobile, general.`,
     },
     {
       role: "user",
-      content: `Parse this resume and extract structured information:\n\n${text}`,
+      content: `Parse this resume and extract structured information. Use the supplied GitHub metadata as additional evidence, but never invent details that are not present in the resume or metadata. LinkedIn is a reference link only and must not be treated as verified content.\n\nSource links: ${JSON.stringify(sources || {})}\nGitHub metadata: ${githubContext || "Unavailable"}\n\n${text}`,
     },
   ];
 
@@ -143,11 +143,9 @@ Valid domains: frontend, backend, data-ai, cloud, devops, mobile, general.`,
 export async function generateAssessment(parsedProfile: {
   skills: { name: string; level: number; id: string }[];
   projects?: { title: string; techStack: string[] }[];
+  certifications?: { name: string; issuer?: string }[];
 }): Promise<AssessmentQuestion[]> {
-  // Select top skills to assess (max 6 for a reasonable assessment)
-  const skillsToAssess = parsedProfile.skills
-    .sort((a, b) => b.level - a.level)
-    .slice(0, 6);
+  const skillsToAssess = parsedProfile.skills;
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     {
@@ -155,13 +153,13 @@ export async function generateAssessment(parsedProfile: {
       content: `You are a skill assessment generator for a placement platform. Generate a personalized assessment based on the student's claimed skills. Return ONLY valid JSON.
 
 Rules:
-- Generate 2-3 questions per skill (total 10-15 questions)
-- Question difficulty matches claimed level: Level 1-2 = easy, Level 3 = medium, Level 4-5 = hard
+- Generate 1-3 questions per skill as needed to cover the profile (do not cap the number of skills).
+- Balance difficulty across the full assessment: mostly easy for levels 1-2, medium for level 3, and hard for levels 4-5, with a smaller adjacent-difficulty mix when useful.
 - Mix objective (multiple choice with 4 options) and subjective (short answer) questions
 - Objective questions: exactly 4 options, one correct answer
 - Subjective questions: expect 2-4 sentence answers
 - Questions should test practical understanding, not just theory
-- Reference their projects when possible to make questions contextual
+- Use projects and certifications as evidence when writing contextual questions.
 
 Return JSON array:
 [
@@ -184,7 +182,8 @@ For subjective questions, omit "options" and "correctAnswer".`,
       content: `Generate an assessment for this student profile:
 
 Skills: ${JSON.stringify(skillsToAssess)}
-Projects: ${JSON.stringify(parsedProfile.projects || [])}`,
+Projects: ${JSON.stringify(parsedProfile.projects || [])}
+Certifications: ${JSON.stringify(parsedProfile.certifications || [])}`,
     },
   ];
 
@@ -200,7 +199,7 @@ Projects: ${JSON.stringify(parsedProfile.projects || [])}`,
 export async function evaluateAssessment(
   questions: AssessmentQuestion[],
   answers: AssessmentAnswer[],
-  parsedProfile: { skills: { name: string; level: number; id: string }[] }
+  parsedProfile: { skills: { name: string; level: number; id: string }[]; projects?: unknown[]; certifications?: unknown[] }
 ): Promise<AssessmentResult> {
   const questionsWithAnswers = questions.map((q) => {
     const answer = answers.find((a) => a.questionId === q.id);
@@ -242,7 +241,7 @@ Return JSON:
 }
 
 Be fair but honest. If claimed level 4 but answers suggest level 2, say so.
-Provide actionable, specific feedback — not generic praise.`,
+Make every recommendation and CV tip specific to the student's projects, certifications, assessed gaps, and target skill level. Mention the exact project or credential when it is relevant. Never give generic praise or generic advice.`,
     },
     {
       role: "user",
@@ -250,13 +249,13 @@ Provide actionable, specific feedback — not generic praise.`,
 
 Questions & Answers: ${JSON.stringify(questionsWithAnswers)}
 
-Student's claimed skills: ${JSON.stringify(parsedProfile.skills)}`,
+Student profile context: ${JSON.stringify(parsedProfile)}`,
     },
   ];
 
-  const raw = await chatComplete(messages, { temperature: 0.2, maxTokens: 4000 });
+  const raw = await chatComplete(messages, { temperature: 0.2, maxTokens: 8000 });
 
-  return parseJSON<AssessmentResult>(raw, {
+  const fallback: AssessmentResult = {
     overallScore: 50,
     overallGrade: "C",
     skillGrades: parsedProfile.skills.map((s) => ({
@@ -267,9 +266,39 @@ Student's claimed skills: ${JSON.stringify(parsedProfile.skills)}`,
       score: 50,
       feedback: "Assessment could not be fully evaluated. Please try again.",
     })),
-    recommendations: ["Complete relevant online courses to strengthen fundamentals."],
-    cvTips: ["Add more specific project details and quantifiable achievements."],
-  });
+    recommendations: [
+      ...parsedProfile.skills.slice(0, 4).map((skill) =>
+        `Build one practical ${skill.name} project at level ${Math.min(5, skill.level + 1)} difficulty and document the decisions you made.`
+      ),
+      "Retake the assessment after practicing the skills with the lowest scores.",
+    ],
+    cvTips: [
+      ...((parsedProfile.projects || []).slice(0, 3).map((project) => {
+        const title = typeof project === "object" && project !== null && "title" in project ? String(project.title) : "your project";
+        return `Add measurable outcomes, your specific contribution, and the technologies used to ${title}.`;
+      })),
+      ...((parsedProfile.certifications || []).slice(0, 2).map((certification) => {
+        const name = typeof certification === "object" && certification !== null && "name" in certification ? String(certification.name) : "each certification";
+        return `Place ${name} near your skills and connect it to a project or assessed capability.`;
+      })),
+      "Replace broad claims with evidence: scale, performance change, users, or time saved.",
+    ],
+  };
+  const result = parseJSON<AssessmentResult>(raw, fallback);
+
+  // Keep the results useful even when an AI provider returns a valid but
+  // incomplete response.
+  return {
+    ...fallback,
+    ...result,
+    skillGrades: Array.isArray(result.skillGrades) && result.skillGrades.length > 0 ? result.skillGrades : fallback.skillGrades,
+    recommendations: Array.isArray(result.recommendations) && result.recommendations.length >= 3
+      ? result.recommendations
+      : [...(Array.isArray(result.recommendations) ? result.recommendations : []), ...fallback.recommendations].slice(0, 5),
+    cvTips: Array.isArray(result.cvTips) && result.cvTips.length >= 3
+      ? result.cvTips
+      : [...(Array.isArray(result.cvTips) ? result.cvTips : []), ...fallback.cvTips].slice(0, 5),
+  };
 }
 
 /**

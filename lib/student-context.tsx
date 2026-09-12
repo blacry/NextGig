@@ -1,41 +1,69 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { toast } from "sonner";
+import { createClient } from "./supabase/client";
+import {
+  DataError,
+  WriteError,
+  applyToOpportunity,
+  getApplicationsByStudentId,
+  getStudentBySlug,
+  setApplicationStage,
+} from "./data";
 import type {
-  Student,
-  Skill,
   Application,
-  OnboardingState,
+  ApplicationStage,
   ChatMessage,
-  AssessmentQuestion,
-  AssessmentAnswer,
-  AssessmentResult,
+  OnboardingState,
+  Skill,
+  Student,
 } from "./types";
-import { mockStudents, mockApplications } from "./data";
 
 // ── Student Context ──────────────────────────────────────────────────
-// Manages the active student's profile, onboarding state, applications,
-// and AI chat history. All state is persisted to localStorage per user.
+// Loads the active student's profile and applications from Supabase and
+// writes changes straight back, so state survives a refresh and a new device.
+//
+// Application writes go through the apply_to_opportunity and
+// set_application_stage database functions rather than through table writes:
+// they are the single place stage history is appended, which is what keeps a
+// timeline from gaining a duplicate entry when a retry or a double click
+// sends the same change twice.
+//
+// Two things deliberately stay client-only:
+//   - `onboarding`, which is in-flight wizard state persisted to sessionStorage
+//     by the onboarding pages themselves and committed to Postgres by
+//     /api/complete-onboarding at the end.
+//   - `chatHistory`, which has no table in the schema; it stays in
+//     localStorage, scoped per student slug.
 
 interface StudentContextValue {
   student: Student | null;
   setStudent: (student: Student) => void;
-  updateSkills: (skills: Skill[]) => void;
+  updateSkills: (skills: Skill[]) => Promise<void>;
   applications: Application[];
-  addApplication: (app: Application) => void;
-  updateApplication: (appId: string, updates: Partial<Application>) => void;
+  addApplication: (opportunityId: string) => Promise<void>;
+  withdrawApplication: (appId: string) => Promise<void>;
   onboarding: OnboardingState;
   setOnboarding: (state: OnboardingState) => void;
   chatHistory: ChatMessage[];
   addChatMessage: (message: ChatMessage) => void;
   clearChatHistory: () => void;
+  /** Re-reads the profile from Supabase; used after onboarding completes. */
+  refresh: () => Promise<void>;
   isLoaded: boolean;
 }
 
 const StudentContext = createContext<StudentContextValue | undefined>(undefined);
 
-function getStorageKey(slug: string, suffix: string) {
-  return `nextgig-student-${slug}-${suffix}`;
+function getChatStorageKey(slug: string) {
+  return `nextgig-student-${slug}-chat`;
 }
 
 export function StudentProvider({
@@ -50,142 +78,165 @@ export function StudentProvider({
   const [onboarding, setOnboardingState] = useState<OnboardingState>({ step: 1 });
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [supabase] = useState(() => createClient());
 
-  // Load student data from mock data or localStorage
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!studentSlug) {
       setIsLoaded(true);
       return;
     }
 
-    // Try localStorage first (for onboarded students)
-    const storedStudent = localStorage.getItem(getStorageKey(studentSlug, "profile"));
-    if (storedStudent) {
-      try {
-        setStudentState(JSON.parse(storedStudent));
-      } catch {
-        // Fall back to mock data
-        const mock = mockStudents.find((s) => s.slug === studentSlug);
-        if (mock) setStudentState(mock);
-      }
-    } else {
-      // Fall back to mock data
-      const mock = mockStudents.find((s) => s.slug === studentSlug);
-      if (mock) setStudentState(mock);
-    }
+    try {
+      const profile = await getStudentBySlug(studentSlug);
+      setStudentState(profile ?? null);
 
-    // Load applications
-    const storedApps = localStorage.getItem(getStorageKey(studentSlug, "applications"));
-    if (storedApps) {
-      try {
-        setApplications(JSON.parse(storedApps));
-      } catch {
-        setApplications(mockApplications.filter((a) => {
-          const mock = mockStudents.find((s) => s.slug === studentSlug);
-          return mock && a.studentId === mock.id;
-        }));
+      if (profile) {
+        setApplications(await getApplicationsByStudentId(profile.id));
+      } else {
+        setApplications([]);
       }
-    } else {
-      setApplications(mockApplications.filter((a) => {
-        const mock = mockStudents.find((s) => s.slug === studentSlug);
-        return mock && a.studentId === mock.id;
-      }));
+    } catch (error) {
+      console.error("[StudentProvider] failed to load student", error);
+      toast.error(
+        error instanceof DataError
+          ? error.message
+          : "Could not load your profile. Please refresh the page."
+      );
+      setStudentState(null);
+    } finally {
+      setIsLoaded(true);
     }
-
-    // Load onboarding state
-    const storedOnboarding = localStorage.getItem(getStorageKey(studentSlug, "onboarding"));
-    if (storedOnboarding) {
-      try {
-        setOnboardingState(JSON.parse(storedOnboarding));
-      } catch {
-        setOnboardingState({ step: 1 });
-      }
-    }
-
-    // Load chat history (AI memory persistence)
-    const storedChat = localStorage.getItem(getStorageKey(studentSlug, "chat"));
-    if (storedChat) {
-      try {
-        setChatHistory(JSON.parse(storedChat));
-      } catch {
-        setChatHistory([]);
-      }
-    }
-
-    setIsLoaded(true);
   }, [studentSlug]);
 
-  // Persist student profile
-  const setStudent = useCallback(
-    (s: Student) => {
-      setStudentState(s);
-      if (s.slug) {
-        localStorage.setItem(getStorageKey(s.slug, "profile"), JSON.stringify(s));
-      }
-    },
-    []
-  );
+  useEffect(() => {
+    setIsLoaded(false);
+    void load();
+  }, [load]);
 
-  // Update skills
+  // Chat history is browser-local; there is no table for it.
+  useEffect(() => {
+    if (!studentSlug) return;
+
+    const stored = localStorage.getItem(getChatStorageKey(studentSlug));
+    if (!stored) {
+      setChatHistory([]);
+      return;
+    }
+
+    try {
+      setChatHistory(JSON.parse(stored) as ChatMessage[]);
+    } catch {
+      setChatHistory([]);
+    }
+  }, [studentSlug]);
+
+  /** Local-only update, for callers that already persisted their change. */
+  const setStudent = useCallback((next: Student) => {
+    setStudentState(next);
+  }, []);
+
   const updateSkills = useCallback(
-    (skills: Skill[]) => {
-      setStudentState((prev) => {
-        if (!prev) return prev;
-        const updated = { ...prev, skills };
-        localStorage.setItem(getStorageKey(prev.slug, "profile"), JSON.stringify(updated));
-        return updated;
-      });
+    async (skills: Skill[]) => {
+      if (!student) return;
+
+      const rows = skills.map((skill) => ({
+        student_id: student.id,
+        skill_id: skill.id,
+        level: skill.level,
+        verification: skill.verification,
+        verified_at: skill.verifiedAt ?? null,
+        verified_by: skill.verifiedBy ?? null,
+      }));
+
+      const { error } = await supabase
+        .from("student_skills")
+        .upsert(rows, { onConflict: "student_id,skill_id" });
+
+      if (error) {
+        console.error("[StudentProvider] failed to update skills", error);
+        toast.error("Could not save your skills. Please try again.");
+        return;
+      }
+
+      setStudentState({ ...student, skills });
     },
-    []
+    [student, supabase]
   );
 
-  // Applications
   const addApplication = useCallback(
-    (app: Application) => {
-      setApplications((prev) => {
-        const updated = [...prev, app];
-        if (studentSlug) {
-          localStorage.setItem(getStorageKey(studentSlug, "applications"), JSON.stringify(updated));
-        }
-        return updated;
-      });
-    },
-    [studentSlug]
-  );
+    async (opportunityId: string) => {
+      if (!student) return;
 
-  const updateApplication = useCallback(
-    (appId: string, updates: Partial<Application>) => {
-      setApplications((prev) => {
-        const updated = prev.map((a) =>
-          a.id === appId ? { ...a, ...updates } : a
+      // Guard the obvious double-submit locally; the unique constraint on
+      // (student_id, opportunity_id) is what actually enforces it.
+      if (applications.some((app) => app.opportunityId === opportunityId)) {
+        toast.error("You have already applied to this role.");
+        return;
+      }
+
+      try {
+        const application = await applyToOpportunity(opportunityId);
+        setApplications((prev) => [application, ...prev]);
+        toast.success("Application submitted.");
+      } catch (error) {
+        console.error("[StudentProvider] failed to apply", error);
+        toast.error(
+          error instanceof WriteError
+            ? error.message
+            : "Could not submit your application. Please try again."
         );
-        if (studentSlug) {
-          localStorage.setItem(getStorageKey(studentSlug, "applications"), JSON.stringify(updated));
-        }
-        return updated;
-      });
-    },
-    [studentSlug]
-  );
-
-  // Onboarding
-  const setOnboarding = useCallback(
-    (state: OnboardingState) => {
-      setOnboardingState(state);
-      if (studentSlug) {
-        localStorage.setItem(getStorageKey(studentSlug, "onboarding"), JSON.stringify(state));
       }
     },
-    [studentSlug]
+    [student, applications]
   );
 
-  // Chat history (AI memory)
+  const withdrawApplication = useCallback(
+    async (appId: string) => {
+      const previous = applications;
+      const occurredAt = new Date().toISOString();
+      const stage: ApplicationStage = "withdrawn";
+
+      // Optimistic, reverted on failure — withdrawing is a deliberate action
+      // and the list should not sit still while the round-trip completes.
+      setApplications((prev) =>
+        prev.map((app) =>
+          app.id === appId
+            ? {
+                ...app,
+                currentStage: stage,
+                stageHistory: [...app.stageHistory, { stage, timestamp: occurredAt }],
+              }
+            : app
+        )
+      );
+
+      try {
+        await setApplicationStage(appId, stage);
+        toast.success("Application withdrawn.");
+      } catch (error) {
+        console.error("[StudentProvider] failed to withdraw application", error);
+        setApplications(previous);
+        toast.error(
+          error instanceof WriteError
+            ? error.message
+            : "Could not withdraw the application. Please try again."
+        );
+      }
+    },
+    [applications]
+  );
+
+  // In-flight wizard state; committed to Postgres by /api/complete-onboarding.
+  const setOnboarding = useCallback((state: OnboardingState) => {
+    setOnboardingState(state);
+  }, []);
+
   const addChatMessage = useCallback(
     (message: ChatMessage) => {
       setChatHistory((prev) => {
         const updated = [...prev, message];
         if (studentSlug) {
-          localStorage.setItem(getStorageKey(studentSlug, "chat"), JSON.stringify(updated));
+          localStorage.setItem(getChatStorageKey(studentSlug), JSON.stringify(updated));
         }
         return updated;
       });
@@ -196,7 +247,7 @@ export function StudentProvider({
   const clearChatHistory = useCallback(() => {
     setChatHistory([]);
     if (studentSlug) {
-      localStorage.removeItem(getStorageKey(studentSlug, "chat"));
+      localStorage.removeItem(getChatStorageKey(studentSlug));
     }
   }, [studentSlug]);
 
@@ -208,12 +259,13 @@ export function StudentProvider({
         updateSkills,
         applications,
         addApplication,
-        updateApplication,
+        withdrawApplication,
         onboarding,
         setOnboarding,
         chatHistory,
         addChatMessage,
         clearChatHistory,
+        refresh: load,
         isLoaded,
       }}
     >
