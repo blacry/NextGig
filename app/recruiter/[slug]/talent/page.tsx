@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useRecruiter } from "@/lib/recruiter-context";
+import { setApplicationStage, shortlistCandidate } from "@/lib/data";
 import { calculateMatchScore, identifySkillGaps } from "@/lib/matching";
 import type { Student, Opportunity, SkillDomain } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,7 +33,7 @@ const AVAILABILITY_OPTIONS = ["Available", "Immediate", "2 weeks"];
 
 export default function TalentPoolPage() {
   const searchParams = useSearchParams();
-  const { recruiter, opportunities, candidates, isLoaded } = useRecruiter();
+  const { recruiter, opportunities, candidates, applications, isLoaded, refresh } = useRecruiter();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOppId, setSelectedOppId] = useState<string>("all");
@@ -57,6 +58,23 @@ export default function TalentPoolPage() {
     if (selectedOppId === "all") return null;
     return opportunities.find((o) => o.id === selectedOppId) ?? null;
   }, [selectedOppId, opportunities]);
+
+  // Sync database shortlisted applications into component state
+  useEffect(() => {
+    const opp = targetOpportunity || (opportunities.length > 0 ? opportunities[0] : null);
+    if (!opp) return;
+
+    const shortlistedStudentIds = new Set<string>();
+    for (const app of applications) {
+      if (
+        (selectedOppId === "all" || app.opportunityId === opp.id) &&
+        ["screening", "interview", "assessment", "offer", "accepted"].includes(app.currentStage)
+      ) {
+        shortlistedStudentIds.add(app.studentId);
+      }
+    }
+    setShortlistedIds(shortlistedStudentIds);
+  }, [applications, targetOpportunity, opportunities, selectedOppId]);
 
   // Compute student match score and stats
   const processedCandidates = useMemo(() => {
@@ -117,18 +135,45 @@ export default function TalentPoolPage() {
     }).sort((a, b) => b.matchScore - a.matchScore);
   }, [processedCandidates, searchQuery, selectedDomain, minMatchFilter]);
 
-  const toggleShortlist = (studentId: string, studentName: string) => {
+  const toggleShortlist = async (studentId: string, studentName: string) => {
+    const opp = targetOpportunity || (opportunities.length > 0 ? opportunities[0] : null);
+    if (!opp) {
+      toast.error("Please post an opportunity first before shortlisting candidates.");
+      return;
+    }
+
+    const isShortlisted = shortlistedIds.has(studentId);
+
+    // Optimistic UI update
     setShortlistedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(studentId)) {
-        next.delete(studentId);
-        toast.info(`Removed ${studentName} from shortlist`);
-      } else {
-        next.add(studentId);
-        toast.success(`Shortlisted ${studentName}!`);
-      }
+      if (isShortlisted) next.delete(studentId);
+      else next.add(studentId);
       return next;
     });
+
+    try {
+      if (isShortlisted) {
+        const existingApp = applications.find((a) => a.studentId === studentId && a.opportunityId === opp.id);
+        if (existingApp) {
+          await setApplicationStage(existingApp.id, "applied");
+        }
+        toast.info(`Removed ${studentName} from shortlist`);
+      } else {
+        await shortlistCandidate(studentId, opp.id, "screening");
+        toast.success(`Shortlisted ${studentName} for ${opp.title}!`);
+      }
+      await refresh();
+    } catch (err: any) {
+      // Revert optimistic update
+      setShortlistedIds((prev) => {
+        const next = new Set(prev);
+        if (isShortlisted) next.add(studentId);
+        else next.delete(studentId);
+        return next;
+      });
+      toast.error(err.message || "Failed to update candidate shortlist");
+    }
   };
 
   if (!isLoaded) {

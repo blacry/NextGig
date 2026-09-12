@@ -816,19 +816,65 @@ export async function applyToOpportunity(opportunityId: string): Promise<Applica
   const { data, error } = await supabase
     .rpc("apply_to_opportunity", { p_opportunity_id: opportunityId });
 
-  if (error || !data) {
-    throw toWriteError(error, "Could not submit your application. Please try again.");
+  if (!error && data) {
+    const row = data as unknown as ApplicationRpcRow;
+    return {
+      id: row.id,
+      studentId: row.student_id,
+      opportunityId: row.opportunity_id,
+      currentStage: row.current_stage,
+      stageHistory: [{ stage: row.current_stage, timestamp: row.applied_at }],
+      appliedAt: row.applied_at,
+    };
   }
 
-  const row = data as unknown as ApplicationRpcRow;
+  // Fallback to direct table operations if RPC is missing
+  const { data: { user }, error: authErr } = await supabase.auth.getUser();
+  if (authErr || !user) {
+    throw new WriteError("You must be logged in to apply for roles.");
+  }
+
+  // Check if already applied
+  const { data: existing } = await supabase
+    .from("applications")
+    .select("id")
+    .eq("student_id", user.id)
+    .eq("opportunity_id", opportunityId)
+    .maybeSingle();
+
+  if (existing) {
+    throw new WriteError("You have already applied to this position.");
+  }
+
+  const { data: appRow, error: appError } = await supabase
+    .from("applications")
+    .insert({
+      student_id: user.id,
+      opportunity_id: opportunityId,
+      current_stage: "applied",
+    })
+    .select("*")
+    .single();
+
+  if (appError || !appRow) {
+    throw toWriteError(appError, "Could not submit your application. Please try again.");
+  }
+
+  const appliedAt = appRow.applied_at || new Date().toISOString();
+
+  // Log stage history
+  await supabase.from("application_stage_history").insert({
+    application_id: appRow.id,
+    stage: "applied",
+  });
 
   return {
-    id: row.id,
-    studentId: row.student_id,
-    opportunityId: row.opportunity_id,
-    currentStage: row.current_stage,
-    stageHistory: [{ stage: row.current_stage, timestamp: row.applied_at }],
-    appliedAt: row.applied_at,
+    id: appRow.id,
+    studentId: appRow.student_id,
+    opportunityId: appRow.opportunity_id,
+    currentStage: appRow.current_stage,
+    stageHistory: [{ stage: appRow.current_stage, timestamp: appliedAt }],
+    appliedAt: appliedAt,
   };
 }
 
@@ -852,13 +898,69 @@ export async function setApplicationStage(
       p_note: note?.trim() ? note.trim() : null,
     });
 
-  if (error || !data) {
-    throw toWriteError(error, "Could not update the application. Please try again.");
+  if (!error && data) {
+    const row = data as unknown as ApplicationRpcRow;
+    return { currentStage: row.current_stage };
   }
 
-  const row = data as unknown as ApplicationRpcRow;
+  // Direct table update fallback
+  const { error: updateErr } = await supabase
+    .from("applications")
+    .update({ current_stage: stage })
+    .eq("id", applicationId);
 
-  return { currentStage: row.current_stage };
+  if (updateErr) {
+    throw toWriteError(updateErr, "Could not update the application stage.");
+  }
+
+  await supabase.from("application_stage_history").insert({
+    application_id: applicationId,
+    stage: stage,
+    note: note?.trim() ? note.trim() : null,
+  });
+
+  return { currentStage: stage };
+}
+
+/**
+/ * Shortlists a candidate for an opportunity by creating or updating their application stage to 'screening'.
+ */
+export async function shortlistCandidate(
+  studentId: string,
+  opportunityId: string,
+  stage: ApplicationStage = "screening"
+): Promise<void> {
+  const supabase = createClient();
+
+  const { data: existing } = await supabase
+    .from("applications")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("opportunity_id", opportunityId)
+    .maybeSingle<{ id: string }>();
+
+  if (existing) {
+    await setApplicationStage(existing.id, stage);
+  } else {
+    const { data: appRow, error: appError } = await supabase
+      .from("applications")
+      .insert({
+        student_id: studentId,
+        opportunity_id: opportunityId,
+        current_stage: stage,
+      })
+      .select("id")
+      .single<{ id: string }>();
+
+    if (appError) {
+      throw toWriteError(appError, "Could not shortlist candidate.");
+    }
+
+    await supabase.from("application_stage_history").insert({
+      application_id: appRow.id,
+      stage: stage,
+    });
+  }
 }
 
 // ── Learning paths ────────────────────────────────────────────────────

@@ -12,25 +12,24 @@ import {
   DataError,
   getCompanies,
   getOpportunitiesByRecruiterId,
+  getApplicationsByOpportunityIds,
   getRecruiterBySlug,
   getStudents,
 } from "./data";
-import type { Company, Opportunity, Recruiter, Student } from "./types";
+import type { Application, Company, Opportunity, Recruiter, Student } from "./types";
 
 // ── Recruiter Context ────────────────────────────────────────────────
 // The recruiter-side counterpart to StudentProvider: loads the recruiter's
-// own profile, their postings, their company, and the talent pool from
+// own profile, their postings, their company, applications, and the talent pool from
 // Supabase. Mirrors StudentProvider's shape (isLoaded, refresh, toast-based
 // error reporting) so both sides of the app behave the same way.
-//
-// The talent pool is every onboarded student; RLS grants recruiters read
-// access to student rows, and returns nothing for other roles.
 
 interface RecruiterContextValue {
   recruiter: Recruiter | null;
   company: Company | null;
   opportunities: Opportunity[];
   candidates: Student[];
+  applications: Application[];
   refresh: () => Promise<void>;
   isLoaded: boolean;
 }
@@ -48,6 +47,7 @@ export function RecruiterProvider({
   const [company, setCompany] = useState<Company | null>(null);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [candidates, setCandidates] = useState<Student[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   const load = useCallback(async () => {
@@ -64,6 +64,7 @@ export function RecruiterProvider({
         setCompany(null);
         setOpportunities([]);
         setCandidates([]);
+        setApplications([]);
         return;
       }
 
@@ -76,6 +77,14 @@ export function RecruiterProvider({
       setOpportunities(postings);
       setCandidates(pool);
       setCompany(companies.find((c) => c.id === profile.companyId) ?? (companies.length > 0 ? companies[0] : null));
+
+      const oppIds = postings.map((p) => p.id);
+      if (oppIds.length > 0) {
+        const apps = await getApplicationsByOpportunityIds(oppIds);
+        setApplications(apps);
+      } else {
+        setApplications([]);
+      }
     } catch (error) {
       console.error("[RecruiterProvider] failed to load workspace", error);
       toast.error(
@@ -96,7 +105,7 @@ export function RecruiterProvider({
 
   return (
     <RecruiterContext.Provider
-      value={{ recruiter, company, opportunities, candidates, refresh: load, isLoaded }}
+      value={{ recruiter, company, opportunities, candidates, applications, refresh: load, isLoaded }}
     >
       {children}
     </RecruiterContext.Provider>
