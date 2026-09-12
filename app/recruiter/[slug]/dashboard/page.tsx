@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useRecruiter } from "@/lib/recruiter-context";
+import { useRole } from "@/lib/role-context";
 import { rankCandidatesForOpportunity } from "@/lib/matching";
 import { OpportunityForm } from "@/components/opportunity-form";
 import { StatCard } from "@/components/stat-card";
@@ -18,6 +19,7 @@ import { SkeletonCard } from "@/components/shared";
 
 export default function RecruiterDashboardPage() {
   const { recruiter, company, opportunities, candidates, isLoaded, refresh } = useRecruiter();
+  const { userId } = useRole();
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   // Pipeline for the recruiter's most recent posting.
@@ -256,12 +258,12 @@ export default function RecruiterDashboardPage() {
       </div>
 
       {/* Slide-over Drawer Form */}
-      {recruiter && company && (
+      {(recruiter || userId) && (
         <OpportunityForm
           open={isFormOpen}
           onClose={() => setIsFormOpen(false)}
-          recruiterId={recruiter.id}
-          companyId={company.id}
+          recruiterId={recruiter?.id || userId || ""}
+          companyId={company?.id || recruiter?.companyId || ""}
           onSuccess={() => {
             refresh();
             setIsFormOpen(false);

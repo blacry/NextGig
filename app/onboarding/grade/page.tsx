@@ -60,7 +60,8 @@ export default function GradePage() {
         .catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload.details ? `${payload.error ?? "Failed to save your profile."} (${payload.details})` : (payload.error ?? "Failed to save your profile."));
+        const detailStr = typeof payload.details === "object" ? JSON.stringify(payload.details) : payload.details;
+        throw new Error(detailStr ? `${payload.error ?? "Failed to save your profile."} (${detailStr})` : (payload.error ?? "Failed to save your profile."));
       }
 
       // Skills the AI invented that aren't in the taxonomy are dropped rather

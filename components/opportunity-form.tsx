@@ -159,6 +159,24 @@ export function OpportunityForm({
     setShowSkillDropdown(false);
   }
 
+  function addCustomSkill(rawName: string) {
+    const name = rawName.trim();
+    if (!name) return;
+    const customId = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    setSkills((prev) => [
+      ...prev,
+      {
+        id: uid(),
+        skillId: customId || uid(),
+        skillName: name,
+        requiredLevel: minLevel,
+        priority: "must",
+      },
+    ]);
+    setSkillSearch("");
+    setShowSkillDropdown(false);
+  }
+
   function removeSkill(id: string) {
     setSkills((prev) => prev.filter((s) => s.id !== id));
   }
@@ -371,12 +389,23 @@ export function OpportunityForm({
                       value={skillSearch}
                       onChange={(e) => { setSkillSearch(e.target.value); setShowSkillDropdown(true); }}
                       onFocus={() => setShowSkillDropdown(true)}
-                      onBlur={() => setTimeout(() => setShowSkillDropdown(false), 150)}
-                      placeholder="Python, Machine Learning..."
+                      onBlur={() => setTimeout(() => setShowSkillDropdown(false), 200)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && skillSearch.trim()) {
+                          e.preventDefault();
+                          const match = filteredSkills[0];
+                          if (match && match.name.toLowerCase() === skillSearch.trim().toLowerCase()) {
+                            addSkill(match);
+                          } else {
+                            addCustomSkill(skillSearch.trim());
+                          }
+                        }
+                      }}
+                      placeholder="Android, Kotlin, Flutter, Python..."
                     />
-                    {showSkillDropdown && filteredSkills.length > 0 && (
-                      <div className="absolute z-10 top-full mt-1 left-0 right-0 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                        {filteredSkills.slice(0, 10).map((s) => (
+                    {showSkillDropdown && (filteredSkills.length > 0 || skillSearch.trim().length > 0) && (
+                      <div className="absolute z-10 top-full mt-1 left-0 right-0 bg-popover border border-border rounded-md shadow-lg max-h-56 overflow-y-auto divide-y divide-border">
+                        {filteredSkills.slice(0, 15).map((s) => (
                           <button
                             key={s.id}
                             type="button"
@@ -387,6 +416,15 @@ export function OpportunityForm({
                             <span className="text-xs text-muted-foreground capitalize">{s.domain}</span>
                           </button>
                         ))}
+                        {skillSearch.trim() && !skills.some((e) => e.skillName.toLowerCase() === skillSearch.trim().toLowerCase()) && (
+                          <button
+                            type="button"
+                            onMouseDown={() => addCustomSkill(skillSearch.trim())}
+                            className="w-full text-left px-3 py-2 text-sm text-[var(--ng-primary)] hover:bg-accent font-medium flex items-center gap-1.5"
+                          >
+                            <span>+ Add &quot;{skillSearch.trim()}&quot; as custom skill</span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

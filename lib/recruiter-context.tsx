@@ -75,7 +75,7 @@ export function RecruiterProvider({
 
       setOpportunities(postings);
       setCandidates(pool);
-      setCompany(companies.find((c) => c.id === profile.companyId) ?? null);
+      setCompany(companies.find((c) => c.id === profile.companyId) ?? (companies.length > 0 ? companies[0] : null));
     } catch (error) {
       console.error("[RecruiterProvider] failed to load workspace", error);
       toast.error(

@@ -39,6 +39,7 @@ import type {
   OpportunitySkillRow,
   OpportunityWithCompanyRow,
   ProjectRow,
+  ProfileRow,
   RecruiterRow,
   SkillRow,
   StudentRow,
@@ -53,7 +54,13 @@ import type {
  */
 export class DataError extends Error {
   constructor(operation: string, cause?: unknown) {
-    super(`Could not load ${operation}. Please try again.`);
+    const details =
+      cause instanceof Error
+        ? cause.message
+        : typeof cause === "object" && cause !== null && "message" in cause && typeof (cause as { message: unknown }).message === "string"
+        ? (cause as { message: string }).message
+        : undefined;
+    super(details ? `Failed ${operation}: ${details}` : `Could not process ${operation}. Please try again.`);
     this.name = "DataError";
     this.cause = cause;
   }
@@ -400,7 +407,29 @@ export async function getRecruiterBySlug(slug: string): Promise<Recruiter | unde
     .maybeSingle<RecruiterRow>();
 
   if (error) throw new DataError("that recruiter profile", error);
-  return data ? toRecruiter(data) : undefined;
+  if (data) return toRecruiter(data);
+
+  // Fallback to profiles table if the recruiters row is missing
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("id, role, name, slug, email, avatar")
+    .eq("slug", slug)
+    .eq("role", "recruiter")
+    .maybeSingle<ProfileRow>();
+
+  if (profileErr || !profile) return undefined;
+
+  // Ensure recruiters row exists
+  await supabase.from("recruiters").upsert({ id: profile.id }, { onConflict: "id" });
+
+  return {
+    id: profile.id,
+    name: profile.name,
+    slug: profile.slug,
+    email: profile.email,
+    companyId: "",
+    ...(profile.avatar ? { avatar: profile.avatar } : {}),
+  };
 }
 
 export async function getRecruiterById(id: string): Promise<Recruiter | undefined> {
@@ -412,7 +441,27 @@ export async function getRecruiterById(id: string): Promise<Recruiter | undefine
     .maybeSingle<RecruiterRow>();
 
   if (error) throw new DataError("that recruiter profile", error);
-  return data ? toRecruiter(data) : undefined;
+  if (data) return toRecruiter(data);
+
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("id, role, name, slug, email, avatar")
+    .eq("id", id)
+    .eq("role", "recruiter")
+    .maybeSingle<ProfileRow>();
+
+  if (profileErr || !profile) return undefined;
+
+  await supabase.from("recruiters").upsert({ id: profile.id }, { onConflict: "id" });
+
+  return {
+    id: profile.id,
+    name: profile.name,
+    slug: profile.slug,
+    email: profile.email,
+    companyId: "",
+    ...(profile.avatar ? { avatar: profile.avatar } : {}),
+  };
 }
 
 // ── Opportunities ─────────────────────────────────────────────────────
@@ -548,12 +597,22 @@ export async function createOpportunity(
 ): Promise<Opportunity> {
   const supabase = createClient();
 
+  let targetCompanyId: string | null = input.companyId || null;
+  if (!targetCompanyId) {
+    const { data: firstCompany } = await supabase
+      .from("companies")
+      .select("id")
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    targetCompanyId = firstCompany?.id ?? null;
+  }
+
   const { data: oppRow, error: oppError } = await supabase
     .from("opportunities")
     .insert({
       title: input.title,
-      recruiter_id: input.recruiterId,
-      company_id: input.companyId,
+      recruiter_id: input.recruiterId || null,
+      company_id: targetCompanyId,
       domain: input.domain,
       type: input.type,
       location: input.location,

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRecruiter } from "@/lib/recruiter-context";
+import { useRole } from "@/lib/role-context";
 import { rankCandidatesForOpportunity } from "@/lib/matching";
 import { OpportunityForm } from "@/components/opportunity-form";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +21,7 @@ export default function RecruiterOpportunitiesPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { recruiter, company, opportunities, candidates, isLoaded, refresh } = useRecruiter();
+  const { userId } = useRole();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -355,12 +357,12 @@ export default function RecruiterOpportunitiesPage() {
       )}
 
       {/* Slide-over Drawer Form */}
-      {recruiter && company && (
+      {(recruiter || userId) && (
         <OpportunityForm
           open={isFormOpen}
           onClose={() => setIsFormOpen(false)}
-          recruiterId={recruiter.id}
-          companyId={company.id}
+          recruiterId={recruiter?.id || userId || ""}
+          companyId={company?.id || recruiter?.companyId || ""}
           onSuccess={() => {
             refresh();
             setIsFormOpen(false);
