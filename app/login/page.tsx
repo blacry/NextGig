@@ -52,11 +52,9 @@ export default function LoginPage() {
     } catch (error) {
       console.error("[demo login]", error);
       toast.error(
-        error instanceof Error && error.message.toLowerCase().includes("invalid login credentials")
-          ? "This demo account is not available yet. Seed the demo users in Supabase, then try again."
-          : error instanceof Error
-            ? error.message
-            : "Could not start the demo. Please try again."
+        error instanceof Error
+          ? error.message
+          : "Could not start the demo. Please try again."
       );
     } finally {
       setPending(null);

@@ -30,24 +30,8 @@ interface ParsedProfile {
   sourceLinks?: { githubUrl?: string; linkedinUrl?: string };
 }
 
-const PREDEFINED_SKILL_TAGS = [
-  { id: "javascript", name: "JavaScript", domain: "frontend" },
-  { id: "typescript", name: "TypeScript", domain: "frontend" },
-  { id: "react", name: "React", domain: "frontend" },
-  { id: "node-js", name: "Node.js", domain: "backend" },
-  { id: "python", name: "Python", domain: "backend" },
-  { id: "java", name: "Java", domain: "backend" },
-  { id: "sql", name: "SQL", domain: "data-ai" },
-  { id: "machine-learning", name: "Machine Learning", domain: "data-ai" },
-  { id: "aws", name: "AWS", domain: "cloud" },
-  { id: "docker", name: "Docker", domain: "devops" },
-  { id: "git", name: "Git", domain: "devops" },
-  { id: "figma", name: "Figma", domain: "general" },
-] as const;
-
 export default function ReviewPage() {
   const [profile, setProfile] = useState<ParsedProfile | null>(null);
-  const [selectedSkillTag, setSelectedSkillTag] = useState(PREDEFINED_SKILL_TAGS[0].id);
   const router = useRouter();
 
   useEffect(() => {
@@ -96,9 +80,7 @@ export default function ReviewPage() {
 
   const addSkill = () => {
     if (!profile) return;
-    const tag = PREDEFINED_SKILL_TAGS.find((item) => item.id === selectedSkillTag);
-    if (!tag || profile.skills.some((skill) => skill.id === tag.id)) return;
-    setProfile({ ...profile, skills: [...profile.skills, { ...tag, level: 1 }] });
+    setProfile({ ...profile, skills: [...profile.skills, { id: `manual-skill-${Date.now()}`, name: "New skill", domain: "general", level: 1 }] });
   };
 
   const updateSkillName = (index: number, name: string) => {
@@ -231,24 +213,7 @@ export default function ReviewPage() {
                 </motion.div>
               ))}
             </div>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <Label htmlFor="skill-tag" className="sr-only">Skill tag</Label>
-              <select
-                id="skill-tag"
-                value={selectedSkillTag}
-                onChange={(e) => setSelectedSkillTag(e.target.value)}
-                className="h-8 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {PREDEFINED_SKILL_TAGS.map((tag) => (
-                  <option key={tag.id} value={tag.id} disabled={profile.skills.some((skill) => skill.id === tag.id)}>
-                    {tag.name}{profile.skills.some((skill) => skill.id === tag.id) ? " (added)" : ""}
-                  </option>
-                ))}
-              </select>
-              <Button variant="outline" size="sm" onClick={addSkill} disabled={profile.skills.some((skill) => skill.id === selectedSkillTag)}>
-                <Plus size={14} className="mr-1" /> Add selected skill
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" className="mt-4" onClick={addSkill}><Plus size={14} className="mr-1" /> Add skill</Button>
           </CardContent>
         </Card>
 
