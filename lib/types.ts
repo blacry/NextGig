@@ -1,13 +1,6 @@
 // ── NextGig Type Definitions ──────────────────────────────────────────
 // Shared TypeScript interfaces used across the entire application.
 // All types are exported from this single file for consistency.
-//
-// Where a domain type is really just the database's own vocabulary, it is
-// derived from the generated enums rather than restated, so the two cannot
-// drift apart. Everything else stays hand-written and camelCase: lib/data.ts
-// maps snake_case rows into these shapes.
-
-import type { Enums } from "./supabase/database.types";
 
 // ── Skill System ─────────────────────────────────────────────────────
 
@@ -43,17 +36,11 @@ export interface SkillTaxonomyItem {
 
 // ── Student ──────────────────────────────────────────────────────────
 
-/**
- * Everything here is optional because it is: a student exists from the
- * moment they sign up, and their education is unknown until they finish
- * onboarding. The matching database columns are nullable to match.
- */
 export interface Education {
-  degree?: string;
-  field?: string;
-  institution?: string;
-  /** Graduation year. */
-  year?: number;
+  degree: string;
+  field: string;
+  institution: string;
+  year: number;
   gpa?: number;
 }
 
@@ -69,10 +56,8 @@ export interface Project {
 export interface Certification {
   id: string;
   name: string;
-  /** Absent when the CV named no issuing body. */
-  issuer?: string;
-  /** ISO `YYYY-MM-DD`. Absent when the CV carried no usable date. */
-  date?: string;
+  issuer: string;
+  date: string;
   verified: boolean;
 }
 
@@ -152,22 +137,14 @@ export interface Opportunity {
 
 // ── Application Lifecycle ────────────────────────────────────────────
 
-/**
- * The application pipeline, derived from the `application_stage` database
- * enum so the two can never drift apart. To change the vocabulary, alter the
- * enum in Postgres and regenerate database.types.ts — do not edit this alias.
- *
- * Current values: applied, screening, interview, assessment, offer, accepted,
- * rejected, withdrawn.
- */
-export type ApplicationStage = Enums<"application_stage">;
-
-/** Stages an application can no longer move on from. */
-export const TERMINAL_STAGES: readonly ApplicationStage[] = [
-  "accepted",
-  "rejected",
-  "withdrawn",
-];
+export type ApplicationStage =
+  | "applied"
+  | "under-review"
+  | "shortlisted"
+  | "interview"
+  | "selected"
+  | "completed"
+  | "rejected";
 
 export interface ApplicationStageEntry {
   stage: ApplicationStage;
@@ -233,11 +210,7 @@ export interface LearningPath {
   url: string;
   skillIds: string[];
   duration: string;
-  /**
-   * Difficulty as the database stores it: `learning_paths.level` is numeric,
-   * not the beginner/intermediate/advanced enum this field used to declare.
-   */
-  level: number;
+  level: "beginner" | "intermediate" | "advanced";
   rating: number;
 }
 

@@ -1,15 +1,18 @@
 "use client";
 
-import React, { use, useEffect } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ThemeToggle } from "@/components/shared";
 import { useRole } from "@/lib/role-context";
-import { RecruiterProvider } from "@/lib/recruiter-context";
 
 // ── Recruiter Layout Wrapper ─────────────────────────────────────────
 
-function RecruiterLayoutContent({ children }: { children: React.ReactNode }) {
+export default function RecruiterLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { role, isLoading } = useRole();
   const router = useRouter();
 
@@ -48,21 +51,5 @@ function RecruiterLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
       </main>
     </div>
-  );
-}
-
-export default function RecruiterLayout({
-  children,
-  params,
-}: {
-  children: React.ReactNode;
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = use(params);
-
-  return (
-    <RecruiterProvider recruiterSlug={slug}>
-      <RecruiterLayoutContent>{children}</RecruiterLayoutContent>
-    </RecruiterProvider>
   );
 }

@@ -1,79 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { toast } from "sonner";
 import { useStudent } from "@/lib/student-context";
-import { DataError, getOpportunitiesWithCompany } from "@/lib/data";
+import { mockOpportunities } from "@/lib/data";
 import { calculateMatchScore } from "@/lib/matching";
 import { OpportunityCard } from "@/components/opportunity-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { SkeletonCard } from "@/components/shared";
-import type { Company, MatchResult, Opportunity } from "@/lib/types";
+import type { MatchResult, Opportunity } from "@/lib/types";
 
 // ── Student Opportunities View ───────────────────────────────────────
 
-interface ScoredOpportunity {
-  opp: Opportunity;
-  company: Company | undefined;
-  result: MatchResult;
-}
-
 export default function OpportunitiesPage() {
-  const { student, isLoaded, applications, addApplication } = useStudent();
+  const { student, isLoaded } = useStudent();
   const [search, setSearch] = useState("");
-  const [matches, setMatches] = useState<ScoredOpportunity[]>([]);
-  const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(true);
+  const [matches, setMatches] = useState<{ opp: Opportunity; result: MatchResult }[]>([]);
 
   useEffect(() => {
-    if (!student) return;
-
-    let active = true;
-
-    const load = async () => {
-      setIsLoadingOpportunities(true);
-      try {
-        const rows = await getOpportunitiesWithCompany();
-        if (!active) return;
-
-        setMatches(
-          rows
-            .map(({ opportunity, company }) => ({
-              opp: opportunity,
-              company,
-              result: calculateMatchScore(student, opportunity),
-            }))
-            .sort((a, b) => b.result.overallScore - a.result.overallScore)
-        );
-      } catch (error) {
-        console.error("[opportunities] failed to load", error);
-        if (active) {
-          toast.error(
-            error instanceof DataError
-              ? error.message
-              : "Could not load opportunities. Please try again."
-          );
-        }
-      } finally {
-        if (active) setIsLoadingOpportunities(false);
-      }
-    };
-
-    void load();
-    return () => {
-      active = false;
-    };
+    if (student) {
+      const scored = mockOpportunities.map(opp => ({
+        opp,
+        result: calculateMatchScore(student, opp)
+      })).sort((a, b) => b.result.overallScore - a.result.overallScore);
+      setMatches(scored);
+    }
   }, [student]);
 
   if (!isLoaded || !student) return null;
 
-  const appliedOpportunityIds = new Set(applications.map((a) => a.opportunityId));
-
-  const filtered = matches.filter(
-    (m) =>
-      m.opp.title.toLowerCase().includes(search.toLowerCase()) ||
-      m.opp.domain.toLowerCase().includes(search.toLowerCase())
+  const filtered = matches.filter(m =>
+    m.opp.title.toLowerCase().includes(search.toLowerCase()) ||
+    m.opp.domain.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -101,37 +59,22 @@ export default function OpportunitiesPage() {
         </div>
       </div>
 
-      {isLoadingOpportunities ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map(({ opp, company, result }, index) => (
-            <OpportunityCard
-              key={opp.id}
-              index={index}
-              opportunity={opp}
-              company={company}
-              matchResult={result}
-              onViewDetails={() => {}}
-              onApply={
-                appliedOpportunityIds.has(opp.id)
-                  ? undefined
-                  : () => void addApplication(opp.id)
-              }
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filtered.map(({ opp, result }, index) => (
+          <OpportunityCard
+            key={opp.id}
+            index={index}
+            opportunity={opp}
+            matchResult={result}
+            onViewDetails={() => {}}
+            onApply={() => {}}
+          />
+        ))}
+      </div>
 
-      {!isLoadingOpportunities && filtered.length === 0 && (
+      {filtered.length === 0 && (
         <div className="py-12 text-center text-muted-foreground">
-          {matches.length === 0
-            ? "No opportunities have been posted yet. Check back soon."
-            : "No opportunities found matching your search."}
+          No opportunities found matching your search.
         </div>
       )}
     </div>

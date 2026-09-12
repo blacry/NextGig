@@ -129,18 +129,21 @@ export default function AssessmentPage() {
                       {currentQuestion.options.map((option, i) => (
                         <motion.div
                           key={i}
-                          className={`flex items-center space-x-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                          onClick={() =>
+                            setAnswers((prev) => ({ ...prev, [currentQuestion.id]: option }))
+                          }
+                          className={`flex items-center space-x-3 p-3.5 rounded-lg border transition-all cursor-pointer select-none ${
                             answers[currentQuestion.id] === option
-                              ? "border-[var(--ng-primary)] bg-[var(--ng-primary)]/5"
-                              : "border-border hover:border-[var(--ng-primary)]/30"
+                              ? "border-[var(--ng-primary)] bg-[var(--ng-primary)]/10 text-foreground ring-1 ring-[var(--ng-primary)]/40 shadow-sm"
+                              : "border-border hover:border-[var(--ng-primary)]/40 hover:bg-muted/40 text-muted-foreground hover:text-foreground"
                           }`}
-                          whileHover={{ scale: 1.01 }}
-                          whileTap={{ scale: 0.99 }}
+                          whileHover={{ scale: 1.008 }}
+                          whileTap={{ scale: 0.992 }}
                         >
                           <RadioGroupItem value={option} id={`option-${i}`} />
-                          <Label htmlFor={`option-${i}`} className="flex-1 cursor-pointer text-sm">
+                          <span className="flex-1 cursor-pointer text-sm font-medium leading-relaxed">
                             {option}
-                          </Label>
+                          </span>
                         </motion.div>
                       ))}
                     </div>

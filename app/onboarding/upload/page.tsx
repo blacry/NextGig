@@ -6,8 +6,6 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { SkeletonCard } from "@/components/shared";
 
@@ -15,8 +13,6 @@ import { SkeletonCard } from "@/components/shared";
 
 export default function UploadPage() {
   const [resumeText, setResumeText] = useState("");
-  const [githubUrl, setGithubUrl] = useState("");
-  const [linkedinUrl, setLinkedinUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const router = useRouter();
@@ -84,10 +80,7 @@ export default function UploadPage() {
       const response = await fetch("/api/extract-skills", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: resumeText,
-          sources: { githubUrl: githubUrl.trim(), linkedinUrl: linkedinUrl.trim() },
-        }),
+        body: JSON.stringify({ text: resumeText }),
       });
 
       if (!response.ok) {
@@ -95,7 +88,6 @@ export default function UploadPage() {
       }
 
       const parsedProfile = await response.json();
-      parsedProfile.sourceLinks = { githubUrl: githubUrl.trim(), linkedinUrl: linkedinUrl.trim() };
 
       // Store in sessionStorage for the review page
       sessionStorage.setItem("nextgig-onboarding-resume", resumeText);
@@ -137,27 +129,9 @@ export default function UploadPage() {
       >
         <h2 className="text-2xl font-bold mb-2">Upload Your Resume</h2>
         <p className="text-muted-foreground mb-6">
-          Add your CV and public profile links. NextGig combines the available evidence, then lets you correct the result before anything is saved.
+          Our AI will parse your CV to extract your skills, education, projects, and certifications.
+          You&apos;ll get to review and edit everything before it&apos;s saved.
         </p>
-
-        <Card className="mb-4">
-          <CardContent className="p-5 space-y-4">
-            <div>
-              <h3 className="font-semibold text-sm">Additional profile sources</h3>
-              <p className="text-xs text-muted-foreground mt-1">Public links help us find projects, contributions, and credentials your CV may miss.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="github-url" className="text-xs mb-1.5 block">GitHub profile or repository URL</Label>
-                <Input id="github-url" type="url" value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} placeholder="https://github.com/you" />
-              </div>
-              <div>
-                <Label htmlFor="linkedin-url" className="text-xs mb-1.5 block">LinkedIn profile URL</Label>
-                <Input id="linkedin-url" type="url" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/you" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Drop zone */}
         <Card

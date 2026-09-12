@@ -8,86 +8,64 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { SkillMeter } from "@/components/skill-meter";
-import { toast } from "sonner";
-import { useRole } from "@/lib/role-context";
 import type { AssessmentResult, SkillLevel } from "@/lib/types";
 
 // ── Step 5: Grade & Results ──────────────────────────────────────────
 
 export default function GradePage() {
   const [result, setResult] = useState<AssessmentResult | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const router = useRouter();
-  const { userSlug } = useRole();
 
   useEffect(() => {
     const stored = sessionStorage.getItem("nextgig-onboarding-result");
     if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as AssessmentResult;
-        queueMicrotask(() => setResult(parsed));
-      } catch { router.push("/onboarding/upload"); }
+      try { setResult(JSON.parse(stored)); } catch { router.push("/onboarding/upload"); }
     } else {
       router.push("/onboarding/upload");
     }
   }, [router]);
 
-  // Commits the confirmed profile and assessed skill levels to Postgres, then
-  // sends the student to their dashboard. Nothing is persisted before this
-  // point — the wizard keeps its in-flight state in sessionStorage.
-  const handleGoToDashboard = async () => {
-    if (!result) return;
+  const handleGoToDashboard = () => {
+    // Store result and profile in localStorage for the dashboard
+    const profile = sessionStorage.getItem("nextgig-onboarding-parsed");
+    if (profile) {
+      const parsed = JSON.parse(profile);
+      const slug = (parsed.name || "student").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
-    const stored = sessionStorage.getItem("nextgig-onboarding-parsed");
-    if (!stored) {
-      toast.error("Your profile data has expired. Please upload your CV again.");
-      router.push("/onboarding/upload");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const confirmedProfile: unknown = JSON.parse(stored);
-
-      const response = await fetch("/api/complete-onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmedProfile, assessmentResult: result }),
-      });
-
-      const payload: { error?: string; details?: string; skippedSkills?: string[] } = await response
-        .json()
-        .catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload.details ? `${payload.error ?? "Failed to save your profile."} (${payload.details})` : (payload.error ?? "Failed to save your profile."));
+      // Update skills with assessed levels
+      if (result) {
+        const assessedSkills = parsed.skills.map((skill: { id: string; name: string; domain: string; level: number }) => {
+          const grade = result.skillGrades.find((g) => g.skillId === skill.id);
+          return {
+            ...skill,
+            level: grade ? grade.assessedLevel : skill.level,
+            verification: "assessed",
+          };
+        });
+        parsed.skills = assessedSkills;
       }
 
-      // Skills the AI invented that aren't in the taxonomy are dropped rather
-      // than failing the whole save; tell the student which ones.
-      if (payload.skippedSkills && payload.skippedSkills.length > 0) {
-        toast.warning(
-          `We could not verify these skills against our catalog: ${payload.skippedSkills.join(", ")}.`
-        );
-      }
-
-      sessionStorage.removeItem("nextgig-onboarding-resume");
-      sessionStorage.removeItem("nextgig-onboarding-parsed");
-      sessionStorage.removeItem("nextgig-onboarding-questions");
-      sessionStorage.removeItem("nextgig-onboarding-result");
-
-      toast.success("Profile saved.");
-      router.push(`/student/${userSlug}/dashboard`);
-    } catch (error) {
-      console.error("[onboarding] failed to persist profile", error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not save your profile. Please try again."
-      );
-    } finally {
-      setIsSaving(false);
+      parsed.slug = slug;
+      parsed.id = `student-${slug}`;
+      localStorage.setItem(`nextgig-student-${slug}-profile`, JSON.stringify(parsed));
+      localStorage.setItem(`nextgig-student-${slug}-onboarding`, JSON.stringify({ step: 5, completed: true }));
+      localStorage.setItem("nextgig-auth", JSON.stringify({
+        role: "student",
+        userName: parsed.name,
+        userSlug: slug,
+        userId: parsed.id,
+      }));
     }
+
+    // Clean up session storage
+    sessionStorage.removeItem("nextgig-onboarding-resume");
+    sessionStorage.removeItem("nextgig-onboarding-parsed");
+    sessionStorage.removeItem("nextgig-onboarding-questions");
+    sessionStorage.removeItem("nextgig-onboarding-result");
+
+    const profile2 = JSON.parse(sessionStorage.getItem("nextgig-onboarding-parsed") || localStorage.getItem(`nextgig-student-${(JSON.parse(localStorage.getItem("nextgig-auth") || "{}")).userSlug}-profile`) || "{}");
+    const slug2 = (JSON.parse(localStorage.getItem("nextgig-auth") || "{}")).userSlug || "student";
+    router.push(`/student/${slug2}/dashboard`);
   };
 
   if (!result) return null;
@@ -203,8 +181,8 @@ export default function GradePage() {
           </Card>
         )}
 
-        <Button onClick={handleGoToDashboard} size="lg" className="w-full" disabled={isSaving}>
-          {isSaving ? "Saving your profile..." : "Go to My Dashboard →"}
+        <Button onClick={handleGoToDashboard} size="lg" className="w-full">
+          Go to My Dashboard →
         </Button>
       </motion.div>
     </div>
