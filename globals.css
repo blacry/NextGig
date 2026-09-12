@@ -1,0 +1,342 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── NextGig Design System ──────────────────────────────────────────── */
+/* Source of truth for all design tokens. Uses Shadcn's CSS variable      */
+/* system with NextGig's custom palette overlaid.                         */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+
+  /* Shadcn standard mappings */
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* NextGig custom colors available as Tailwind classes */
+  --color-ng-canvas: var(--ng-canvas);
+  --color-ng-ink: var(--ng-ink);
+  --color-ng-primary: var(--ng-primary);
+  --color-ng-secondary: var(--ng-secondary);
+  --color-ng-soft: var(--ng-soft);
+  --color-ng-muted: var(--ng-muted);
+  --color-ng-success: var(--ng-success);
+  --color-ng-warning: var(--ng-warning);
+  --color-ng-critical: var(--ng-critical);
+}
+
+/* ── Light Theme (Student-facing default) ───────────────────────────── */
+:root {
+  /* NextGig custom palette */
+  --ng-canvas: #F6F9FB;
+  --ng-ink: #0F1018;
+  --ng-primary: #2469CB;
+  --ng-secondary: #5670B6;
+  --ng-soft: #AED1F0;
+  --ng-muted: #979A9C;
+  --ng-success: #20B486;
+  --ng-warning: #E7A33E;
+  --ng-critical: #D95C5C;
+
+  /* Shadcn token overrides — NextGig light theme */
+  --background: #F6F9FB;
+  --foreground: #0F1018;
+  --card: #FFFFFF;
+  --card-foreground: #0F1018;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F1018;
+  --primary: #2469CB;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EEF2F9;
+  --secondary-foreground: #0F1018;
+  --muted: #EEF2F9;
+  --muted-foreground: #979A9C;
+  --accent: #EEF2F9;
+  --accent-foreground: #0F1018;
+  --destructive: #D95C5C;
+  --border: #E2E6EA;
+  --input: #E2E6EA;
+  --ring: #2469CB;
+
+  /* Charts */
+  --chart-1: #2469CB;
+  --chart-2: #5670B6;
+  --chart-3: #20B486;
+  --chart-4: #E7A33E;
+  --chart-5: #D95C5C;
+
+  --radius: 0.625rem;
+
+  /* Sidebar (student = light) */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #0F1018;
+  --sidebar-primary: #2469CB;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #EEF2F9;
+  --sidebar-accent-foreground: #0F1018;
+  --sidebar-border: #E2E6EA;
+  --sidebar-ring: #2469CB;
+}
+
+/* ── Dark Theme (system-level toggle / recruiter shell) ──────────────── */
+.dark {
+  --ng-canvas: #0F1018;
+  --ng-ink: #F6F9FB;
+  --ng-primary: #4A8FE7;
+  --ng-secondary: #7B8FCC;
+  --ng-soft: #1E2A3A;
+  --ng-muted: #6B6E70;
+  --ng-success: #2ED09A;
+  --ng-warning: #F0B85A;
+  --ng-critical: #E87070;
+
+  --background: #0A0B10;
+  --foreground: #E8EAED;
+  --card: #141520;
+  --card-foreground: #E8EAED;
+  --popover: #141520;
+  --popover-foreground: #E8EAED;
+  --primary: #4A8FE7;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1E2030;
+  --secondary-foreground: #E8EAED;
+  --muted: #1E2030;
+  --muted-foreground: #6B6E70;
+  --accent: #1E2030;
+  --accent-foreground: #E8EAED;
+  --destructive: #E87070;
+  --border: #2A2D3A;
+  --input: #2A2D3A;
+  --ring: #4A8FE7;
+
+  --chart-1: #4A8FE7;
+  --chart-2: #7B8FCC;
+  --chart-3: #2ED09A;
+  --chart-4: #F0B85A;
+  --chart-5: #E87070;
+
+  --sidebar: #0F1018;
+  --sidebar-foreground: #E8EAED;
+  --sidebar-primary: #4A8FE7;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E2030;
+  --sidebar-accent-foreground: #E8EAED;
+  --sidebar-border: #2A2D3A;
+  --sidebar-ring: #4A8FE7;
+}
+
+/* ── Recruiter-specific dark theme (via data attribute) ──────────────── */
+[data-theme="dark"] {
+  --ng-canvas: #0F1018;
+  --ng-ink: #F6F9FB;
+  --ng-primary: #4A8FE7;
+  --ng-secondary: #7B8FCC;
+  --ng-soft: #1E2A3A;
+  --ng-muted: #6B6E70;
+  --ng-success: #2ED09A;
+  --ng-warning: #F0B85A;
+  --ng-critical: #E87070;
+
+  --background: #0A0B10;
+  --foreground: #E8EAED;
+  --card: #141520;
+  --card-foreground: #E8EAED;
+  --popover: #141520;
+  --popover-foreground: #E8EAED;
+  --primary: #4A8FE7;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1E2030;
+  --secondary-foreground: #E8EAED;
+  --muted: #1E2030;
+  --muted-foreground: #6B6E70;
+  --accent: #1E2030;
+  --accent-foreground: #E8EAED;
+  --destructive: #E87070;
+  --border: #2A2D3A;
+  --input: #2A2D3A;
+  --ring: #4A8FE7;
+
+  --sidebar: #0F1018;
+  --sidebar-foreground: #E8EAED;
+  --sidebar-primary: #4A8FE7;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E2030;
+  --sidebar-accent-foreground: #E8EAED;
+  --sidebar-border: #2A2D3A;
+  --sidebar-ring: #4A8FE7;
+}
+
+/* ── Base Styles ─────────────────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans scroll-smooth;
+  }
+
+  /* Typography scale */
+  h1 { font-size: 2.25rem; line-height: 2.75rem; font-weight: 700; letter-spacing: -0.025em; }
+  h2 { font-size: 1.75rem; line-height: 2.25rem; font-weight: 600; letter-spacing: -0.02em; }
+  h3 { font-size: 1.25rem; line-height: 1.75rem; font-weight: 600; }
+  h4 { font-size: 1rem; line-height: 1.5rem; font-weight: 600; }
+
+  /* Focus states — WCAG visible */
+  :focus-visible {
+    outline: 2px solid var(--ng-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Minimum touch targets */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--ng-muted); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ng-secondary); }
+}
+
+/* ── Animations ──────────────────────────────────────────────────────── */
+@layer utilities {
+  /* Skeleton shimmer */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent 0%, var(--ng-soft) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  /* Gradient background for login/onboarding */
+  @keyframes gradient-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient-shift 8s ease infinite;
+  }
+
+  /* Pulse glow for AI surfaces */
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(36, 105, 203, 0); }
+    50% { box-shadow: 0 0 20px 4px rgba(36, 105, 203, 0.15); }
+  }
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  /* Count-up number animation helper */
+  @keyframes count-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-count-up {
+    animation: count-up 0.4s ease-out forwards;
+  }
+}
+
+/* ── Reduced Motion ──────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Responsive Utilities ────────────────────────────────────────────── */
+/* Sidebar widths */
+@media (min-width: 1024px) {
+  .sidebar-expanded { width: 260px; }
+  .main-with-sidebar { margin-left: 260px; }
+}
+
+@media (max-width: 1023px) {
+  .sidebar-expanded { display: none; }
+  .main-with-sidebar { margin-left: 0; }
+}
+
+/* Card grid layouts */
+.grid-dashboard {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .grid-dashboard {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .grid-dashboard {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Dense recruiter table layout */
+[data-theme="dark"] .data-table td {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+/* AI chat surfaces */
+.ai-surface {
+  background-color: var(--ng-soft);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
