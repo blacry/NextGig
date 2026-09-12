@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { useStudent } from "@/lib/student-context";
-import { mockOpportunities } from "@/lib/data";
+import { DataError, getOpportunitiesWithCompany } from "@/lib/data";
 import { calculatePlacementReadiness, identifySkillGaps } from "@/lib/matching";
 import { StatCard } from "@/components/stat-card";
 import { ReadinessRing } from "@/components/readiness-ring";
@@ -12,30 +13,75 @@ import { OpportunityCard } from "@/components/opportunity-card";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { SkillMeter } from "@/components/skill-meter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { SkillLevel } from "@/lib/types";
+import { TERMINAL_STAGES } from "@/lib/types";
+import type { Company, Opportunity, SkillLevel } from "@/lib/types";
 
 // ── Student Dashboard ────────────────────────────────────────────────
 
+interface OpportunityWithCompany {
+  opportunity: Opportunity;
+  company: Company | undefined;
+}
+
 export default function StudentDashboardPage() {
-  const { student, isLoaded } = useStudent();
+  const { student, isLoaded, applications } = useStudent();
   const router = useRouter();
-  const [readiness, setReadiness] = useState<{ readiness: number; bestMatchId: string | null; trend: number } | null>(null);
+  const [opportunities, setOpportunities] = useState<OpportunityWithCompany[]>([]);
+  const [readiness, setReadiness] = useState<{
+    readiness: number;
+    bestMatchId: string | null;
+    trend: number;
+  } | null>(null);
 
   useEffect(() => {
-    if (student) {
-      setReadiness(calculatePlacementReadiness(student, mockOpportunities));
-    }
+    if (!student) return;
+
+    let active = true;
+
+    const load = async () => {
+      try {
+        const rows = await getOpportunitiesWithCompany();
+        if (!active) return;
+
+        setOpportunities(rows);
+        setReadiness(
+          calculatePlacementReadiness(
+            student,
+            rows.map((row) => row.opportunity)
+          )
+        );
+      } catch (error) {
+        console.error("[dashboard] failed to load opportunities", error);
+        if (active) {
+          toast.error(
+            error instanceof DataError
+              ? error.message
+              : "Could not load your dashboard. Please refresh the page."
+          );
+          // Still render the profile-driven half of the dashboard.
+          setReadiness({ readiness: 0, bestMatchId: null, trend: 0 });
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      active = false;
+    };
   }, [student]);
 
   if (!isLoaded || !student || !readiness) return null;
 
   // Derive stats
-  const verifiedSkills = student.skills.filter(s => s.verification !== "self-declared").length;
-  const activeApps = mockOpportunities.filter(o => o.domain === student.education.field).length; // mock active apps
+  const verifiedSkills = student.skills.filter((s) => s.verification !== "self-declared").length;
+  const activeApps = applications.filter(
+    (a) => !TERMINAL_STAGES.includes(a.currentStage)
+  ).length;
+  const interviewApps = applications.filter((a) => a.currentStage === "interview").length;
 
   // Find gaps for the best match
-  const bestMatch = mockOpportunities.find(o => o.id === readiness.bestMatchId);
-  const gaps = bestMatch ? identifySkillGaps(student, bestMatch) : [];
+  const bestMatch = opportunities.find((row) => row.opportunity.id === readiness.bestMatchId);
+  const gaps = bestMatch ? identifySkillGaps(student, bestMatch.opportunity) : [];
 
   return (
     <div className="space-y-6">
@@ -63,14 +109,18 @@ export default function StudentDashboardPage() {
             index={1}
             title="Projects"
             value={student.projects.length}
-            description={`${student.projects.filter(p => p.verified).length} verified by professors`}
+            description={`${student.projects.filter((p) => p.verified).length} verified by professors`}
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>}
           />
           <StatCard
             index={2}
             title="Active Applications"
             value={activeApps}
-            description="2 moving to interview phase"
+            description={
+              interviewApps > 0
+                ? `${interviewApps} in the interview phase`
+                : "No interviews scheduled yet"
+            }
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>}
           />
           <StatCard
@@ -87,13 +137,20 @@ export default function StudentDashboardPage() {
         {/* Left Column: Top Match & Gaps */}
         <div className="xl:col-span-2 space-y-6">
           <h3 className="font-semibold text-lg">Top Recommended Opportunity</h3>
-          {bestMatch && (
+          {bestMatch ? (
             <OpportunityCard
-              opportunity={bestMatch}
-              matchReason={`Your ${bestMatch.domain} background and Level ${student.skills[0]?.level || 3} ${student.skills[0]?.name || 'skills'} make you a strong candidate.`}
+              opportunity={bestMatch.opportunity}
+              company={bestMatch.company}
+              matchReason={`Your ${bestMatch.opportunity.domain} background and Level ${student.skills[0]?.level || 3} ${student.skills[0]?.name || "skills"} make you a strong candidate.`}
               onViewDetails={() => router.push(`/student/${student.slug}/opportunities`)}
               onApply={() => router.push(`/student/${student.slug}/opportunities`)}
             />
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-center text-muted-foreground text-sm">
+                No opportunities have been posted yet. Check back soon.
+              </CardContent>
+            </Card>
           )}
 
           <h3 className="font-semibold text-lg mt-8">Critical Skill Gaps to Close</h3>
@@ -134,29 +191,34 @@ export default function StudentDashboardPage() {
         {/* Right Column: AI Insights & Quick Actions */}
         <div className="space-y-6">
           <h3 className="font-semibold text-lg">AI Insights</h3>
-          <AIRecommendationCard
-            title="Improve your React score"
-            reason="Your target role 'Frontend Developer at TechCorp' requires React Level 4. You are currently Level 3."
-            actionLabel="Take React Assessment"
-            onAction={() => {}}
-          />
-          <AIRecommendationCard
-            title="Add your recent project"
-            reason="You mentioned 'E-commerce App' in your chat, but it's not in your profile. Adding it boosts your experience match by 5%."
-            actionLabel="Update Profile"
-            onAction={() => {}}
-          />
+          {gaps.slice(0, 2).map((gap) => (
+            <AIRecommendationCard
+              key={gap.skillId}
+              title={`Improve your ${gap.skillName} level`}
+              reason={`${gap.requirement} You are currently Level ${gap.currentLevel}.`}
+              actionLabel={`View ${gap.skillName} gap`}
+              onAction={() => router.push(`/student/${student.slug}/skill-gap`)}
+            />
+          ))}
+          {gaps.length === 0 && (
+            <AIRecommendationCard
+              title="Keep your profile fresh"
+              reason="Adding a recent project boosts your experience match on every role you apply to."
+              actionLabel="Update Profile"
+              onAction={() => router.push(`/student/${student.slug}/passport`)}
+            />
+          )}
 
           <Card className="mt-6 border-dashed bg-muted/30">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <button className="w-full flex items-center justify-between p-2.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
+              <button onClick={() => router.push("/onboarding/upload")} className="w-full flex items-center justify-between p-2.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
                 <span>Update Resume</span>
                 <span className="text-muted-foreground">→</span>
               </button>
-              <button className="w-full flex items-center justify-between p-2.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
+              <button onClick={() => router.push(`/student/${student.slug}/passport`)} className="w-full flex items-center justify-between p-2.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
                 <span>Request Project Verification</span>
                 <span className="text-muted-foreground">→</span>
               </button>
