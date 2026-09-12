@@ -22,6 +22,13 @@ interface OpportunityWithGaps {
   gaps: SkillGap[];
 }
 
+const getLevelLabel = (level: number): string => {
+  if (level === 1) return "beginner";
+  if (level === 2) return "intermediate";
+  if (level === 3) return "advanced";
+  return "beginner";
+};
+
 export default function SkillGapPage() {
   const { student, isLoaded } = useStudent();
   const router = useRouter();
@@ -363,7 +370,10 @@ export default function SkillGapPage() {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.4 + index * 0.1 }}
                       >
-                        <Card className="hover:border-[var(--ng-primary)] transition-colors cursor-pointer">
+                        <Card
+                          className="hover:border-[var(--ng-primary)] transition-colors cursor-pointer"
+                          onClick={() => router.push(`/student/${student.slug}/courses`)}
+                        >
                           <CardContent className="p-4">
                             <div className="flex items-start gap-3">
                               <div className="w-10 h-10 rounded-lg bg-[var(--ng-primary)]/10 flex items-center justify-center shrink-0">
@@ -390,7 +400,7 @@ export default function SkillGapPage() {
                                 </p>
                                 <div className="flex items-center gap-2 text-xs">
                                   <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
-                                    {path.level}
+                                    {getLevelLabel(path.level)}
                                   </Badge>
                                   <span className="text-muted-foreground">{path.duration}</span>
                                   <span className="text-amber-600 flex items-center gap-1">
@@ -403,6 +413,14 @@ export default function SkillGapPage() {
                         </Card>
                       </motion.div>
                     ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => router.push(`/student/${student.slug}/courses`)}
+                    >
+                      View All Courses
+                    </Button>
                   </div>
                 ) : (
                   <Card>
@@ -419,7 +437,12 @@ export default function SkillGapPage() {
                       Focus on closing critical gaps first. Each level gained boosts your match
                       score by up to 15%.
                     </p>
-                    <Button size="sm" variant="outline" className="w-full">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => router.push(`/student/${student.slug}/opportunities`)}
+                    >
                       View All Opportunities
                     </Button>
                   </CardContent>

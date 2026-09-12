@@ -10,6 +10,7 @@ import { OpportunityCard } from "@/components/opportunity-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SkeletonCard } from "@/components/shared";
+import { Badge } from "@/components/ui/badge";
 import type { Company, MatchResult, Opportunity } from "@/lib/types";
 
 // ── Student Opportunities View ───────────────────────────────────────
@@ -20,11 +21,16 @@ interface ScoredOpportunity {
   result: MatchResult;
 }
 
+type SortOption = "match" | "newest" | "deadline" | "compensation";
+type FilterType = "all" | "internship" | "full-time" | "contract";
+
 export default function OpportunitiesPage() {
   const { student, isLoaded, applications, addApplication } = useStudent();
   const [search, setSearch] = useState("");
   const [matches, setMatches] = useState<ScoredOpportunity[]>([]);
   const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(true);
+  const [sortBy, setSortBy] = useState<SortOption>("match");
+  const [filterType, setFilterType] = useState<FilterType>("all");
 
   useEffect(() => {
     if (!student) return;
@@ -70,11 +76,42 @@ export default function OpportunitiesPage() {
 
   const appliedOpportunityIds = new Set(applications.map((a) => a.opportunityId));
 
-  const filtered = matches.filter(
+  // Apply filters and search
+  let filtered = matches.filter(
     (m) =>
-      m.opp.title.toLowerCase().includes(search.toLowerCase()) ||
-      m.opp.domain.toLowerCase().includes(search.toLowerCase())
+      (m.opp.title.toLowerCase().includes(search.toLowerCase()) ||
+      m.opp.domain.toLowerCase().includes(search.toLowerCase()) ||
+      m.company?.name.toLowerCase().includes(search.toLowerCase())) &&
+      (filterType === "all" || m.opp.type === filterType)
   );
+
+  // Apply sorting
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    switch (sortBy) {
+      case "match":
+        return b.result.overallScore - a.result.overallScore;
+      case "newest":
+        return new Date(b.opp.postedAt).getTime() - new Date(a.opp.postedAt).getTime();
+      case "deadline":
+        return new Date(a.opp.deadline).getTime() - new Date(b.opp.deadline).getTime();
+      case "compensation":
+        // Simple numeric extraction from compensation string
+        const getCompValue = (comp: string) => {
+          const match = comp.match(/\d+/);
+          return match ? parseInt(match[0]) : 0;
+        };
+        return getCompValue(b.opp.compensation) - getCompValue(a.opp.compensation);
+      default:
+        return 0;
+    }
+  });
+
+  const typeCount = {
+    all: matches.length,
+    internship: matches.filter((m) => m.opp.type === "internship").length,
+    "full-time": matches.filter((m) => m.opp.type === "full-time").length,
+    contract: matches.filter((m) => m.opp.type === "contract").length,
+  };
 
   return (
     <div className="space-y-6">
@@ -83,21 +120,67 @@ export default function OpportunitiesPage() {
         <p className="text-muted-foreground mt-1">Discover roles matched to your verified skills.</p>
       </motion.div>
 
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <Input
-            placeholder="Search roles, domains, or skills..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      {/* Search and Filters */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <Input
+              placeholder="Search roles, domains, companies, or skills..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">Filters</Button>
-          <Button variant="outline">Sort: Match Score</Button>
+
+        {/* Filter Badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-muted-foreground">Filter:</span>
+          <Badge
+            variant={filterType === "all" ? "default" : "outline"}
+            className="cursor-pointer"
+            onClick={() => setFilterType("all")}
+          >
+            All ({typeCount.all})
+          </Badge>
+          <Badge
+            variant={filterType === "internship" ? "default" : "outline"}
+            className="cursor-pointer"
+            onClick={() => setFilterType("internship")}
+          >
+            Internships ({typeCount.internship})
+          </Badge>
+          <Badge
+            variant={filterType === "full-time" ? "default" : "outline"}
+            className="cursor-pointer"
+            onClick={() => setFilterType("full-time")}
+          >
+            Full-Time ({typeCount["full-time"]})
+          </Badge>
+          <Badge
+            variant={filterType === "contract" ? "default" : "outline"}
+            className="cursor-pointer"
+            onClick={() => setFilterType("contract")}
+          >
+            Contract ({typeCount.contract})
+          </Badge>
+
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="text-sm border border-border rounded-md px-3 py-1.5 bg-background hover:bg-accent cursor-pointer transition-colors"
+            >
+              <option value="match">Best Match</option>
+              <option value="newest">Newest First</option>
+              <option value="deadline">Deadline Soon</option>
+              <option value="compensation">Highest Pay</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -109,7 +192,7 @@ export default function OpportunitiesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map(({ opp, company, result }, index) => (
+          {sortedFiltered.map(({ opp, company, result }, index) => (
             <OpportunityCard
               key={opp.id}
               index={index}
@@ -127,11 +210,11 @@ export default function OpportunitiesPage() {
         </div>
       )}
 
-      {!isLoadingOpportunities && filtered.length === 0 && (
+      {!isLoadingOpportunities && sortedFiltered.length === 0 && (
         <div className="py-12 text-center text-muted-foreground">
           {matches.length === 0
             ? "No opportunities have been posted yet. Check back soon."
-            : "No opportunities found matching your search."}
+            : "No opportunities found matching your filters."}
         </div>
       )}
     </div>

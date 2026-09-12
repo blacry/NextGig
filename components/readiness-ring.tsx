@@ -41,8 +41,14 @@ export function ReadinessRing({
   return (
     <div className="flex flex-col items-center">
       <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
-          {/* Background track */}
+        {/* Glow effect */}
+        <div
+          className="absolute inset-0 rounded-full blur-xl opacity-20"
+          style={{ backgroundColor: getColor() }}
+        />
+
+        <svg width={size} height={size} className="-rotate-90 relative">
+          {/* Background track with gradient */}
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -50,8 +56,9 @@ export function ReadinessRing({
             fill="none"
             stroke="var(--border)"
             strokeWidth={strokeWidth}
+            opacity={0.2}
           />
-          {/* Animated progress */}
+          {/* Animated progress with gradient */}
           <motion.circle
             cx={size / 2}
             cy={size / 2}
@@ -66,30 +73,38 @@ export function ReadinessRing({
               strokeDashoffset: circumference - (value / 100) * circumference,
             }}
             transition={{ duration: 1.5, ease: "easeOut" }}
+            style={{
+              filter: "drop-shadow(0 0 4px currentColor)",
+            }}
           />
         </svg>
 
         {/* Center content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <motion.span
-            className="text-3xl font-bold"
-            style={{ color: getColor() }}
-          >
-            {rounded}
-          </motion.span>
-          <span className="text-[10px] text-muted-foreground font-medium -mt-0.5">%</span>
+          <motion.div className="text-center">
+            <motion.span
+              className="text-4xl font-bold"
+              style={{ color: getColor() }}
+            >
+              {rounded}
+            </motion.span>
+            <span className="text-xl font-medium ml-0.5" style={{ color: getColor() }}>%</span>
+          </motion.div>
         </div>
       </div>
 
       {/* Label and trend */}
-      <div className="mt-3 text-center">
-        <p className="text-sm font-medium text-foreground">{label}</p>
+      <div className="mt-4 text-center">
+        <p className="text-sm font-semibold text-foreground">{label}</p>
         {trend !== undefined && (
-          <p className="text-xs text-muted-foreground mt-0.5">
-            <span style={{ color: trend > 0 ? "var(--ng-success)" : "var(--ng-critical)" }}>
+          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 justify-center">
+            <span
+              className="font-semibold"
+              style={{ color: trend > 0 ? "var(--ng-success)" : "var(--ng-critical)" }}
+            >
               {trend > 0 ? "↑" : "↓"} {Math.abs(trend)}%
-            </span>{" "}
-            from last month
+            </span>
+            <span>from last month</span>
           </p>
         )}
       </div>

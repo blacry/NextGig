@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { useStudent } from "@/lib/student-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ const DOMAIN_LABELS: Record<SkillDomain, string> = {
 
 export default function MySkillsPage() {
   const { student, isLoaded } = useStudent();
+  const router = useRouter();
   const [groupedSkills, setGroupedSkills] = useState<Record<SkillDomain, Skill[]>>({
     frontend: [],
     backend: [],
@@ -81,10 +83,22 @@ export default function MySkillsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-3xl font-bold tracking-tight">My Skills</h1>
-        <p className="text-muted-foreground mt-1">
-          Your verified skill inventory and proficiency levels.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">My Skills</h1>
+            <p className="text-muted-foreground mt-1">
+              Your verified skill inventory and proficiency levels.
+            </p>
+          </div>
+          <Button onClick={() => router.push("/onboarding/upload")} variant="outline" className="gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Update Resume
+          </Button>
+        </div>
       </motion.div>
 
       {/* Summary Cards */}
