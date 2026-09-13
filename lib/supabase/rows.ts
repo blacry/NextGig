@@ -126,6 +126,18 @@ export type RecruiterRow = Pick<Tables<"recruiters">, "id" | "company_id"> & {
   profiles: ProfileRow | null;
 };
 
+/** Academicians are represented by profile rows with role = `academician`. */
+export type AcademicianRow = ProfileRow;
+
+export type LectureRow = Pick<
+  Tables<"lectures">,
+  "id" | "academician_id" | "institution_id" | "title" | "description" | "scheduled_start" |
+  "scheduled_end" | "meet_url" | "status" | "audience" | "course" |
+  "created_at" | "updated_at"
+> & {
+  profiles: ProfileRow | null;
+};
+
 /** `opportunity_skills ( ..., skills ( name ) )` */
 export type OpportunitySkillRow = Pick<
   Tables<"opportunity_skills">,

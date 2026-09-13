@@ -1,0 +1,22 @@
+"use client";
+
+import { useState } from "react";
+import { toast } from "sonner";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { LectureCard } from "@/components/lecture-card";
+import { useAcademician } from "@/lib/academician-context";
+import type { LectureInput } from "@/lib/data";
+
+const empty: LectureInput = { title: "", description: "", scheduledStart: "", scheduledEnd: "", meetUrl: "https://meet.google.com/", audience: "", course: "", status: "published" };
+export default function AcademicianLecturesPage() {
+  const { lectures, create, remove } = useAcademician(); const [form, setForm] = useState<LectureInput>(empty); const [saving, setSaving] = useState(false);
+  const set = (key: keyof LectureInput, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  async function submit(event: React.FormEvent) { event.preventDefault(); if (!form.title.trim() || !form.scheduledStart || !/^https:\/\/meet\.google\.com\//.test(form.meetUrl)) { toast.error("Add a title, time, and valid Google Meet link."); return; } if (form.scheduledEnd && new Date(form.scheduledEnd) <= new Date(form.scheduledStart)) { toast.error("End time must be after the start time."); return; } setSaving(true); try { await create(form); setForm(empty); toast.success("Lecture published"); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not publish lecture."); } finally { setSaving(false); } }
+  return <div className="grid gap-6 xl:grid-cols-[minmax(0,380px)_1fr]">
+    <Card size="sm" className="h-auto self-start"><CardContent className="p-5"><h1 className="text-xl font-bold">Host a lecture</h1><p className="mt-1 text-sm text-muted-foreground">Times are saved in your local timezone and shown to students in theirs.</p><form onSubmit={submit} className="mt-5 space-y-4"><div><Label htmlFor="lecture-title">Topic or title</Label><Input id="lecture-title" value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Designing resilient APIs" required /></div><div><Label htmlFor="lecture-description">Description</Label><textarea id="lecture-description" value={form.description} onChange={(e) => set("description", e.target.value)} className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="What will students learn?" /></div><div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="lecture-start">Starts</Label><Input id="lecture-start" type="datetime-local" value={form.scheduledStart} onChange={(e) => set("scheduledStart", e.target.value)} required /></div><div><Label htmlFor="lecture-end">Ends (optional)</Label><Input id="lecture-end" type="datetime-local" value={form.scheduledEnd} onChange={(e) => set("scheduledEnd", e.target.value)} /></div></div><div><Label htmlFor="lecture-meet">Google Meet link</Label><Input id="lecture-meet" type="url" value={form.meetUrl} onChange={(e) => set("meetUrl", e.target.value)} placeholder="https://meet.google.com/abc-defg-hij" required /></div><div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="lecture-course">Course (optional)</Label><Input id="lecture-course" value={form.course} onChange={(e) => set("course", e.target.value)} /></div><div><Label htmlFor="lecture-audience">Audience</Label><Input id="lecture-audience" value={form.audience} onChange={(e) => set("audience", e.target.value)} placeholder="All students" /></div></div><Button disabled={saving} className="w-full">{saving ? "Publishing…" : "Publish lecture"}</Button></form></CardContent></Card>
+    <section className="space-y-3"><div><h2 className="text-xl font-bold">Your lectures</h2><p className="text-sm text-muted-foreground">Manage sessions and keep students informed.</p></div>{lectures.length ? <div className="grid gap-3 md:grid-cols-2">{lectures.map((lecture) => <LectureCard key={lecture.id} lecture={lecture} manage onDelete={async () => { if (!window.confirm("Delete this lecture?")) return; try { await remove(lecture.id); toast.success("Lecture deleted"); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not delete lecture."); } }} />)}</div> : <Card size="sm" className="h-auto"><CardContent className="p-8 text-center text-sm text-muted-foreground">Your published lectures will appear here.</CardContent></Card>}</section>
+  </div>;
+}
