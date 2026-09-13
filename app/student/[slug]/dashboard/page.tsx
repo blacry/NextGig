@@ -2,22 +2,33 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import {
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  FolderGit2,
+  Send,
+  GraduationCap,
+  Briefcase,
+  AlertCircle,
+  TrendingUp,
+  Award,
+  CheckCircle2,
+  Compass,
+  FileCheck2,
+  FileText,
+  UserCheck,
+  ChevronRight,
+  Target,
+} from "lucide-react";
 import { useStudent } from "@/lib/student-context";
 import { DataError, getOpportunitiesWithCompany } from "@/lib/data";
 import { calculatePlacementReadiness, identifySkillGaps } from "@/lib/matching";
-import { StatCard } from "@/components/stat-card";
-import { SkillsRadarChart } from "@/components/skills-radar-chart";
-import { OpportunityCard } from "@/components/opportunity-card";
-import { AIRecommendationCard } from "@/components/ai-recommendation-card";
-import { YouTubeCourseCard } from "@/components/youtube-course-card";
-import { SkillMeter } from "@/components/skill-meter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TERMINAL_STAGES } from "@/lib/types";
 import type { Company, Opportunity, SkillLevel } from "@/lib/types";
-
-// ── Student Dashboard ────────────────────────────────────────────────
 
 interface OpportunityWithCompany {
   opportunity: Opportunity;
@@ -25,7 +36,7 @@ interface OpportunityWithCompany {
 }
 
 export default function StudentDashboardPage() {
-  const { student, isLoaded, applications, addApplication } = useStudent();
+  const { student, isLoaded, applications } = useStudent();
   const router = useRouter();
   const [opportunities, setOpportunities] = useState<OpportunityWithCompany[]>([]);
   const [readiness, setReadiness] = useState<{
@@ -33,14 +44,6 @@ export default function StudentDashboardPage() {
     bestMatchId: string | null;
     trend: number;
   } | null>(null);
-  const [youtubeCourses, setYoutubeCourses] = useState<Array<{
-    title: string;
-    videoId: string;
-    thumbnail: string;
-    channel: string;
-    description: string;
-    relevance: number;
-  }>>([]);
 
   useEffect(() => {
     if (!student) return;
@@ -59,23 +62,6 @@ export default function StudentDashboardPage() {
             rows.map((row) => row.opportunity)
           )
         );
-
-        try {
-          const response = await fetch("/api/youtube-courses", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              skills: student.skills.map((skill) => skill.name),
-              context: `Dashboard recommendations for a ${student.education.field} student`,
-            }),
-          });
-          if (response.ok) {
-            const data = await response.json();
-            if (active) setYoutubeCourses(data.courses || []);
-          }
-        } catch (youtubeError) {
-          console.error("[dashboard] YouTube recommendations failed", youtubeError);
-        }
       } catch (error) {
         console.error("[dashboard] failed to load opportunities", error);
         if (active) {
@@ -84,7 +70,6 @@ export default function StudentDashboardPage() {
               ? error.message
               : "Could not load your dashboard. Please refresh the page."
           );
-          // Still render the profile-driven half of the dashboard.
           setReadiness({ readiness: 0, bestMatchId: null, trend: 0 });
         }
       }
@@ -96,227 +81,525 @@ export default function StudentDashboardPage() {
     };
   }, [student]);
 
-  if (!isLoaded || !student || !readiness) return null;
+  if (!isLoaded || !student || !readiness) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-[#1E5AA8] border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-semibold text-[#5B6575]">Loading student dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Derive stats
+  // Derived stats
   const verifiedSkills = student.skills.filter((s) => s.verification !== "self-declared").length;
   const activeApps = applications.filter(
     (a) => !TERMINAL_STAGES.includes(a.currentStage)
   ).length;
   const interviewApps = applications.filter((a) => a.currentStage === "interview").length;
-  const applicationStatusLabel = (stage: string) => stage.charAt(0).toUpperCase() + stage.slice(1);
 
-  // Find gaps for the best match
+  // Best matched opportunity & identified skill gaps
   const bestMatch = opportunities.find((row) => row.opportunity.id === readiness.bestMatchId);
   const gaps = bestMatch ? identifySkillGaps(student, bestMatch.opportunity) : [];
 
+  // Readiness circle values
+  const radius = 60;
+  const strokeWidth = 10;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (readiness.readiness / 100) * circumference;
+
   return (
-    <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Your placement journey at a glance.</p>
-      </motion.div>
+    <div className="space-y-8 max-w-7xl mx-auto">
+      {/* 1. Dashboard Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-[#D9E1EA]">
+        <div className="space-y-1.5">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide uppercase bg-[#EAF2FB] text-[#1E5AA8] border border-[#1E5AA8]/20">
+            <GraduationCap className="w-3.5 h-3.5" />
+            VRIDHI LEARNER PORTAL
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#123B6D] tracking-tight">
+            Learner Dashboard
+          </h1>
+          <p className="text-xs sm:text-sm text-[#5B6575] font-medium">
+            Your skill development and career journey at a glance.
+          </p>
+        </div>
 
-      {/* Top Row: Skills Radar Chart + Key Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-1 flex flex-col items-center justify-center p-6">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-            Skill Proficiency
-          </h3>
-          <SkillsRadarChart skills={student.skills} />
-        </Card>
-
-        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <StatCard
-            index={0}
-            title="Verified Skills"
-            value={verifiedSkills}
-            suffix={`/ ${student.skills.length}`}
-            description="Assessed or project-verified"
-            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>}
-          />
-          <StatCard
-            index={1}
-            title="Projects"
-            value={student.projects.length}
-            description={`${student.projects.filter((p) => p.verified).length} verified by professors`}
-            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>}
-          />
-          <StatCard
-            index={2}
-            title="Active Applications"
-            value={activeApps}
-            description={
-              interviewApps > 0
-                ? `${interviewApps} in the interview phase`
-                : "No interviews scheduled yet"
-            }
-            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>}
-          />
-          <StatCard
-            index={3}
-            title="GPA"
-            value={student.education.gpa || 0}
-            description={student.education.institution}
-            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>}
-          />
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/student/${student.slug}/opportunities`}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1E5AA8] hover:bg-[#123B6D] text-white text-xs sm:text-sm font-bold shadow-xs transition-colors cursor-pointer"
+          >
+            <span>Explore Opportunities</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
       </div>
 
-      {youtubeCourses.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-lg">Learn next</h3>
-              <p className="text-sm text-muted-foreground">AI-recommended YouTube lessons for your career path.</p>
-            </div>
-            <button className="text-sm text-[var(--ng-primary)] hover:underline" onClick={() => router.push(`/student/${student.slug}/courses`)}>View all</button>
+      {/* 2. Top Row: Placement Readiness Card + 4 Key KPI Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* Placement Readiness Circular Card */}
+        <div className="lg:col-span-4 bg-white rounded-2xl p-6 border border-[#D9E1EA] shadow-2xs flex flex-col items-center justify-center text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#F4A11A] via-[#1E5AA8] to-[#138808]" />
+          
+          <div className="w-full flex items-center justify-between mb-3 text-left">
+            <span className="text-[11px] font-bold text-[#5B6575] uppercase tracking-wider">
+              Placement Readiness
+            </span>
+            <span className="text-[11px] font-bold text-[#138808] bg-[#EAF7ED] px-2 py-0.5 rounded-full border border-[#138808]/20">
+              +{readiness.trend || 5}% from last month
+            </span>
           </div>
-          <div className="card-grid card-grid-3">
-            {youtubeCourses.slice(0, 3).map((course, index) => (
-              <YouTubeCourseCard key={`${course.videoId}-${index}`} {...course} index={index} />
-            ))}
-          </div>
-        </section>
-      )}
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-3"><div><h3 className="text-lg font-semibold">Application activity</h3><p className="text-sm text-muted-foreground">Live updates from recruiter pipelines.</p></div><button className="text-sm text-[var(--ng-primary)] hover:underline" onClick={() => router.push(`/student/${student.slug}/opportunities`)}>View opportunities</button></div>
-        <Card><CardContent className="p-0">{applications.length ? <div className="card-grid card-grid-2 gap-3 p-4">{applications.slice(0, 6).map((application) => { const row = opportunities.find((item) => item.opportunity.id === application.opportunityId); const latest = application.stageHistory.at(-1); return <button key={application.id} onClick={() => router.push(`/student/${student.slug}/opportunities`)} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-4 text-left transition-colors hover:bg-muted/50"><div className="min-w-0"><p className="truncate text-sm font-semibold">{row?.opportunity.title || "Opportunity"}</p><p className="mt-1 text-xs text-muted-foreground">Updated {latest ? new Date(latest.timestamp).toLocaleDateString() : "recently"}</p></div><span className="shrink-0 rounded-full bg-[var(--ng-primary)]/10 px-2.5 py-1 text-xs font-medium text-[var(--ng-primary)]">{applicationStatusLabel(application.currentStage)}</span></button>; })}</div> : <div className="p-6 text-center text-sm text-muted-foreground">No applications yet. Explore opportunities to get started.</div>}</CardContent></Card>
-      </section>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Left Column: Top Match & Gaps */}
-        <div className="xl:col-span-2 space-y-6">
-          <h3 className="font-semibold text-lg">Top Recommended Opportunity</h3>
-          {bestMatch ? (
-            <div className="max-w-2xl">
-            <OpportunityCard
-              opportunity={bestMatch.opportunity}
-              company={bestMatch.company}
-              matchReason={`Your ${bestMatch.opportunity.domain} background and Level ${student.skills[0]?.level || 3} ${student.skills[0]?.name || "skills"} make you a strong candidate.`}
-              onViewDetails={() => router.push(`/student/${student.slug}/opportunities`)}
-              onApply={() => void addApplication(bestMatch.opportunity.id)}
-            />
+          <div className="relative my-3">
+            <svg width={140} height={140} className="-rotate-90">
+              {/* Background track */}
+              <circle
+                cx={70}
+                cy={70}
+                r={radius}
+                fill="none"
+                stroke="#E2E8F0"
+                strokeWidth={strokeWidth}
+              />
+              {/* Animated progress */}
+              <motion.circle
+                cx={70}
+                cy={70}
+                r={radius}
+                fill="none"
+                stroke="#1E5AA8"
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                initial={{ strokeDashoffset: circumference }}
+                animate={{ strokeDashoffset }}
+                transition={{ duration: 1.2, ease: "easeOut" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl font-extrabold text-[#123B6D]">
+                {readiness.readiness}%
+              </span>
+              <span className="text-[10px] font-bold text-[#5B6575] uppercase tracking-wider">
+                Overall Index
+              </span>
             </div>
-          ) : (
-            <Card>
-              <CardContent className="p-6 text-center text-muted-foreground text-sm">
-                No opportunities have been posted yet. Check back soon.
-              </CardContent>
-            </Card>
-          )}
+          </div>
 
-          <h3 className="font-semibold text-lg mt-8">Critical Skill Gaps to Close</h3>
-          <Card>
-            <CardContent className="p-0">
-              {gaps.length > 0 ? (
-                <div className="divide-y divide-border">
-                  {gaps.slice(0, 3).map((gap, i) => (
-                    <div key={i} className="p-4 flex items-center justify-between">
-                      <div className="flex-1 min-w-0 pr-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm">{gap.skillName}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                            gap.severity === 'critical' ? 'bg-[var(--ng-critical)]/10 text-[var(--ng-critical)]' :
-                            gap.severity === 'moderate' ? 'bg-[var(--ng-warning)]/10 text-[var(--ng-warning)]' :
-                            'bg-[var(--ng-primary)]/10 text-[var(--ng-primary)]'
-                          }`}>
-                            {gap.severity}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate">{gap.requirement}</p>
-                      </div>
-                      <div className="w-32 shrink-0">
-                        <SkillMeter skillName="" currentLevel={gap.currentLevel as SkillLevel} targetLevel={gap.requiredLevel as SkillLevel} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-6 text-center text-muted-foreground text-sm">
-                  No critical gaps identified for your top matches. Great job!
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <p className="text-xs text-[#5B6575] max-w-xs mt-1">
+            Calculated across verified skill levels, professor-verified projects, and role suitability.
+          </p>
         </div>
 
-        {/* Right Column: Career Tips & Quick Actions */}
-        <div className="space-y-6">
-          <h3 className="font-semibold text-lg">Career Tips</h3>
-
-          {/* Career Tips Card */}
-          <Card className="bg-gradient-to-br from-[var(--ng-primary)]/5 to-[var(--ng-primary)]/10 border-[var(--ng-primary)]/20">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-[var(--ng-primary)]/20 flex items-center justify-center shrink-0">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ng-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-sm mb-2 text-[var(--ng-primary)]">
-                    Boost Your Readiness Score
-                  </h4>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Your current readiness is <strong>{readiness.readiness}%</strong>. To improve:
-                  </p>
+        {/* 4 KPI Metric Cards */}
+        <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Card 1: Verified Skills */}
+          <div className="bg-white rounded-2xl p-5 border border-[#D9E1EA] shadow-2xs flex flex-col justify-between hover:border-[#1E5AA8]/40 transition-colors">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[10.5px] font-bold text-[#5B6575] uppercase tracking-wider">
+                  Verified Skills
+                </span>
+                <div className="text-2xl font-extrabold text-[#123B6D] mt-1 flex items-baseline gap-1">
+                  <span>{verifiedSkills}</span>
+                  <span className="text-sm font-medium text-[#5B6575]">/ {student.skills.length}</span>
                 </div>
               </div>
-              <ul className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                {[
-                  "Complete skill assessments to verify expertise",
-                  "Add recent projects to show practical experience",
-                  "Close critical gaps to unlock more roles",
-                  "Refresh your profile before applying",
-                  "Practice explaining your strongest projects",
-                  "Track application feedback and next steps",
-                ].map((tip) => <li key={tip} className="flex items-start gap-2"><span className="text-[var(--ng-primary)]">•</span><span>{tip}</span></li>)}
-              </ul>
-            </CardContent>
-          </Card>
+              <div className="w-10 h-10 rounded-xl bg-[#EAF2FB] border border-[#1E5AA8]/20 flex items-center justify-center text-[#1E5AA8]">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-xs text-[#5B6575] mt-3">
+              Assessed or project-verified
+            </p>
+          </div>
 
-          {/* Skill Gap Insights */}
-          {gaps.slice(0, 2).map((gap) => (
-            <AIRecommendationCard
-              key={gap.skillId}
-              title={`Improve your ${gap.skillName} level`}
-              reason={`${gap.requirement} You are currently Level ${gap.currentLevel}.`}
-              actionLabel={`View ${gap.skillName} gap`}
-              onAction={() => router.push(`/student/${student.slug}/skill-gap`)}
-            />
-          ))}
-          {gaps.length === 0 && (
-            <AIRecommendationCard
-              title="Keep your profile fresh"
-              reason="Adding a recent project boosts your experience match on every role you apply to."
-              actionLabel="Update Profile"
-              onAction={() => router.push(`/student/${student.slug}/portfolio`)}
-            />
-          )}
+          {/* Card 2: Projects */}
+          <div className="bg-white rounded-2xl p-5 border border-[#D9E1EA] shadow-2xs flex flex-col justify-between hover:border-[#1E5AA8]/40 transition-colors">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[10.5px] font-bold text-[#5B6575] uppercase tracking-wider">
+                  Projects
+                </span>
+                <div className="text-2xl font-extrabold text-[#123B6D] mt-1">
+                  {student.projects.length}
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[#EAF2FB] border border-[#1E5AA8]/20 flex items-center justify-center text-[#1E5AA8]">
+                <FolderGit2 className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-xs text-[#5B6575] mt-3">
+              {student.projects.filter((p) => p.verified).length} verified by professors
+            </p>
+          </div>
 
-          <Card className="border-dashed bg-muted/30">
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-sm">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 p-3">
-              <button onClick={() => router.push("/onboarding/upload")} className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
-                <span>Update Resume</span>
-                <span className="text-muted-foreground">→</span>
-              </button>
-              <button onClick={() => router.push(`/student/${student.slug}/portfolio`)} className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
-                <span>Request Project Verification</span>
-                <span className="text-muted-foreground">→</span>
-              </button>
-              <button onClick={() => router.push(`/student/${student.slug}/skills`)} className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
-                <span>View All Skills</span>
-                <span className="text-muted-foreground">→</span>
-              </button>
-            </CardContent>
-          </Card>
+          {/* Card 3: Active Applications */}
+          <div className="bg-white rounded-2xl p-5 border border-[#D9E1EA] shadow-2xs flex flex-col justify-between hover:border-[#1E5AA8]/40 transition-colors">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[10.5px] font-bold text-[#5B6575] uppercase tracking-wider">
+                  Active Applications
+                </span>
+                <div className="text-2xl font-extrabold text-[#123B6D] mt-1">
+                  {activeApps}
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[#EAF2FB] border border-[#1E5AA8]/20 flex items-center justify-center text-[#1E5AA8]">
+                <Send className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-xs text-[#5B6575] mt-3">
+              {interviewApps > 0
+                ? `${interviewApps} in interview stage`
+                : "No interviews scheduled yet"}
+            </p>
+          </div>
+
+          {/* Card 4: GPA */}
+          <div className="bg-white rounded-2xl p-5 border border-[#D9E1EA] shadow-2xs flex flex-col justify-between hover:border-[#1E5AA8]/40 transition-colors">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[10.5px] font-bold text-[#5B6575] uppercase tracking-wider">
+                  GPA
+                </span>
+                <div className="text-2xl font-extrabold text-[#123B6D] mt-1">
+                  {student.education?.gpa || "3.8"}
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[#EAF2FB] border border-[#1E5AA8]/20 flex items-center justify-center text-[#1E5AA8]">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-xs text-[#5B6575] mt-3 truncate">
+              {student.education?.institution || "National Institute of Technology"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Middle Row: Top Recommended Opportunity & Critical Skill Gaps */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column (8 cols): Top Opportunity & Gaps */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Top Recommended Opportunity */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-base text-[#123B6D] flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-[#1E5AA8]" />
+                Top Recommended Opportunity
+              </h3>
+              <Link
+                href={`/student/${student.slug}/opportunities`}
+                className="text-xs font-bold text-[#1E5AA8] hover:text-[#123B6D] flex items-center gap-1"
+              >
+                View all <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {bestMatch ? (
+              <div className="bg-white rounded-2xl p-6 border border-[#D9E1EA] shadow-2xs hover:border-[#1E5AA8]/40 transition-all">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#EAF2FB] text-[#1E5AA8] mb-1.5">
+                      {bestMatch.opportunity.type || "Full-Time"} · {bestMatch.opportunity.domain}
+                    </div>
+                    <h4 className="text-lg font-extrabold text-[#123B6D]">
+                      {bestMatch.opportunity.title}
+                    </h4>
+                    <p className="text-xs text-[#5B6575] mt-0.5 font-medium">
+                      {bestMatch.company?.name || "Partner Organization"} · {bestMatch.opportunity.location || "Onsite / Hybrid"}
+                    </p>
+                  </div>
+
+                  <div className="flex sm:flex-col items-center sm:items-end gap-1">
+                    <span className="text-[11px] font-bold text-[#138808] bg-[#EAF7ED] px-2.5 py-1 rounded-full border border-[#138808]/20">
+                      High Match
+                    </span>
+                    <span className="text-xs font-semibold text-[#5B6575]">
+                      {bestMatch.opportunity.compensation}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-[#5B6575] leading-relaxed mb-4 bg-[#F8FAFC] p-3 rounded-xl border border-[#E2E8F0]">
+                  Your {bestMatch.opportunity.domain} background and Level {student.skills[0]?.level || 3} {student.skills[0]?.name || "skills"} make you a strong candidate for this position.
+                </p>
+
+                {/* Skill Badges */}
+                <div className="space-y-1.5 mb-5">
+                  <span className="text-[10.5px] font-bold text-[#5B6575] uppercase tracking-wider block">
+                    Required Skills
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {bestMatch.opportunity.requiredSkills?.map((skill) => (
+                      <span
+                        key={skill.skillId}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#EAF2FB] text-[#1E5AA8] border border-[#1E5AA8]/20"
+                      >
+                        {skill.skillName} (L{skill.requiredLevel})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col sm:flex-row items-center gap-3 pt-4 border-t border-[#E2E8F0]">
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/student/${student.slug}/opportunities`)}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#1E5AA8] hover:bg-[#123B6D] text-white text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Apply Now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/student/${student.slug}/opportunities`)}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white hover:bg-[#F8FAFC] text-[#123B6D] text-xs font-bold border border-[#CBD5E1] transition-colors cursor-pointer"
+                  >
+                    View Details
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl p-8 border border-[#D9E1EA] text-center text-[#5B6575] text-xs">
+                No active opportunities found at this moment. Check back soon.
+              </div>
+            )}
+          </div>
+
+          {/* Critical Skill Gaps to Close */}
+          <div className="space-y-3">
+            <h3 className="font-extrabold text-base text-[#123B6D] flex items-center gap-2">
+              <Target className="w-4 h-4 text-[#F4A11A]" />
+              Critical Skill Gaps to Close
+            </h3>
+
+            <div className="bg-white rounded-2xl border border-[#D9E1EA] shadow-2xs overflow-hidden">
+              {gaps.length > 0 ? (
+                <div className="divide-y divide-[#E2E8F0]">
+                  {gaps.slice(0, 3).map((gap, i) => {
+                    const currentPct = (gap.currentLevel / 5) * 100;
+                    const reqPct = (gap.requiredLevel / 5) * 100;
+
+                    return (
+                      <div key={i} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-sm text-[#123B6D]">
+                              {gap.skillName}
+                            </span>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                gap.severity === "critical"
+                                  ? "bg-red-50 text-red-600 border border-red-200"
+                                  : gap.severity === "moderate"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-[#EAF2FB] text-[#1E5AA8] border border-[#1E5AA8]/20"
+                              }`}
+                            >
+                              {gap.severity}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[#5B6575]">
+                            {gap.requirement} · Level {gap.currentLevel} of {gap.requiredLevel} Required
+                          </p>
+                        </div>
+
+                        {/* Progress Meter */}
+                        <div className="w-full sm:w-44 shrink-0 space-y-1.5">
+                          <div className="flex justify-between text-[10.5px] font-bold text-[#5B6575]">
+                            <span>Current: L{gap.currentLevel}</span>
+                            <span className="text-[#1E5AA8]">Target: L{gap.requiredLevel}</span>
+                          </div>
+                          <div className="h-2 w-full bg-[#E2E8F0] rounded-full overflow-hidden relative">
+                            <div
+                              className="h-full bg-[#1E5AA8] rounded-full transition-all"
+                              style={{ width: `${currentPct}%` }}
+                            />
+                            <div
+                              className="absolute top-0 bottom-0 w-0.5 bg-[#F4A11A]"
+                              style={{ left: `${reqPct}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-6 text-center text-xs text-[#5B6575]">
+                  No critical skill gaps identified for your top matches. Excellent profile!
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column (4 cols): AI Insights & Quick Actions */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* AI Insights Section */}
+          <div className="space-y-3">
+            <h3 className="font-extrabold text-base text-[#123B6D] flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#1E5AA8]" />
+              AI Insights
+            </h3>
+
+            <div className="space-y-3">
+              {gaps.slice(0, 2).map((gap) => (
+                <div
+                  key={gap.skillId}
+                  className="bg-[#FAFBFD] rounded-2xl p-4 border border-[#D9E1EA] shadow-2xs space-y-3"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-[#EAF2FB] border border-[#1E5AA8]/20 flex items-center justify-center shrink-0 text-[#1E5AA8] mt-0.5">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-bold text-[#123B6D]">
+                        Improve your {gap.skillName} level
+                      </h4>
+                      <p className="text-[11.5px] text-[#5B6575] mt-1 leading-relaxed">
+                        Required at Level {gap.requiredLevel} for {bestMatch?.opportunity.title || "target role"}. You are currently Level {gap.currentLevel}.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => router.push("/onboarding/gap")}
+                    className="w-full py-2 px-3 rounded-xl bg-white hover:bg-[#EAF2FB] text-[#1E5AA8] text-xs font-bold border border-[#1E5AA8]/30 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <span>View {gap.skillName} Gap</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {gaps.length === 0 && (
+                <div className="bg-[#FAFBFD] rounded-2xl p-4 border border-[#D9E1EA] shadow-2xs space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-[#EAF2FB] border border-[#1E5AA8]/20 flex items-center justify-center shrink-0 text-[#1E5AA8] mt-0.5">
+                      <CheckCircle2 className="w-4 h-4 text-[#138808]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-bold text-[#123B6D]">
+                        Profile in Top Tier
+                      </h4>
+                      <p className="text-[11.5px] text-[#5B6575] mt-1 leading-relaxed">
+                        Adding verified academic projects boosts your recruiter visibility.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/onboarding/grade")}
+                    className="w-full py-2 px-3 rounded-xl bg-white hover:bg-[#EAF2FB] text-[#1E5AA8] text-xs font-bold border border-[#1E5AA8]/30 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <span>View Skill Passport</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Actions Panel */}
+          <div className="bg-white rounded-2xl p-5 border border-[#D9E1EA] shadow-2xs space-y-3">
+            <h4 className="font-extrabold text-xs text-[#123B6D] uppercase tracking-wider">
+              Quick Actions
+            </h4>
+
+            <div className="space-y-2">
+              <Link
+                href="/onboarding/assessment"
+                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-[#F8FAFC] border border-[#E2E8F0] text-xs font-bold text-[#123B6D] transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Award className="w-4 h-4 text-[#1E5AA8]" />
+                  <span>Complete Skill Assessment</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-[#64748B]" />
+              </Link>
+
+              <Link
+                href="/onboarding/upload"
+                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-[#F8FAFC] border border-[#E2E8F0] text-xs font-bold text-[#123B6D] transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#1E5AA8]" />
+                  <span>Update Skill Profile</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-[#64748B]" />
+              </Link>
+
+              <Link
+                href={`/student/${student.slug}/opportunities`}
+                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-[#F8FAFC] border border-[#E2E8F0] text-xs font-bold text-[#123B6D] transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-[#1E5AA8]" />
+                  <span>Explore Opportunities</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-[#64748B]" />
+              </Link>
+
+              <Link
+                href="/onboarding/grade"
+                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-[#F8FAFC] border border-[#E2E8F0] text-xs font-bold text-[#123B6D] transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <FileCheck2 className="w-4 h-4 text-[#1E5AA8]" />
+                  <span>View Skill Passport</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-[#64748B]" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Skill Growth Journey Pipeline Visualization */}
+      <div className="bg-white rounded-2xl p-6 border border-[#D9E1EA] shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="font-extrabold text-sm sm:text-base text-[#123B6D]">
+              National Skill Growth Pathway
+            </h3>
+            <p className="text-xs text-[#5B6575]">
+              Structured verification and career enablement lifecycle under VRIDHI.
+            </p>
+          </div>
+          <span className="text-[10px] font-bold text-[#1E5AA8] bg-[#EAF2FB] px-2.5 py-1 rounded-full border border-[#1E5AA8]/20 self-start sm:self-auto">
+            SIH 2026 Prototype Flow
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-2">
+          {[
+            { step: "1", title: "Skills", desc: "Profile & Resume", icon: Award, active: true },
+            { step: "2", title: "Assessment", desc: "AI Benchmarking", icon: Sparkles, active: true },
+            { step: "3", title: "Verification", desc: "Faculty & Guild", icon: ShieldCheck, active: true },
+            { step: "4", title: "Skill Passport", desc: "Verifiable Creds", icon: FileCheck2, active: true },
+            { step: "5", title: "Opportunities", desc: "Direct Matches", icon: Briefcase, active: true },
+            { step: "6", title: "Career Growth", desc: "Placement & Scale", icon: TrendingUp, active: true },
+          ].map((item, idx) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.step}
+                className="bg-[#F8FAFC] rounded-xl p-3 border border-[#E2E8F0] flex flex-col items-center text-center relative group hover:border-[#1E5AA8]/40 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-lg bg-[#EAF2FB] border border-[#1E5AA8]/30 flex items-center justify-center text-[#1E5AA8] mb-2 font-bold text-xs">
+                  <Icon className="w-4 h-4" />
+                </div>
+                <span className="font-extrabold text-xs text-[#123B6D]">{item.title}</span>
+                <span className="text-[10px] text-[#5B6575] mt-0.5">{item.desc}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

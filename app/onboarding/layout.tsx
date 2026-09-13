@@ -1,55 +1,23 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useRole } from "@/lib/role-context";
+import { GlobalHeader, GlobalFooter } from "@/components/GlobalHeader";
 
-// ── Onboarding Layout ────────────────────────────────────────────────
-// Clean, focused layout with step progress indicator.
-//
-// Onboarding writes to the signed-in student's own rows, so the whole flow
-// requires a student session — otherwise the save at the final step would
-// fail with a 401 after the user has done all the work.
+// ── Vridhi Learner Onboarding Layout ─────────────────────────────────
+// Government-style clean light theme with global header & footer.
 
 export default function OnboardingLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { role, isLoading } = useRole();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (role === null) {
-      router.push("/login");
-    } else if (role !== "student") {
-      router.push("/login");
-    }
-  }, [isLoading, role, router]);
-
-  if (isLoading || role !== "student") {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F6F9FB] via-[#E8F0FE] to-[#F6F9FB] dark:from-[#0A0B10] dark:via-[#0F1628] dark:to-[#0A0B10]">
-      {/* Top bar */}
-      <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-sm border-b border-border px-6 py-4">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[var(--ng-primary)] flex items-center justify-center">
-              <span className="text-white font-bold text-sm">N</span>
-            </div>
-            <span className="font-semibold">NextGig</span>
-          </div>
-          <span className="text-xs text-muted-foreground">Student Onboarding</span>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#F7F9FC] text-[#172033] flex flex-col font-sans antialiased selection:bg-[#123B6D]/15 selection:text-[#123B6D]">
+      {/* Universal Global Vridhi Government Header */}
+      <GlobalHeader />
 
-      {/* Content */}
-      <main className="max-w-3xl mx-auto px-6 py-8">
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-[1440px] mx-auto w-full px-4 sm:px-8 py-8 sm:py-12">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -58,6 +26,9 @@ export default function OnboardingLayout({
           {children}
         </motion.div>
       </main>
+
+      {/* Universal Global Vridhi Footer */}
+      <GlobalFooter />
     </div>
   );
 }

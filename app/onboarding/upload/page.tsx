@@ -1,33 +1,53 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import {
+  Upload,
+  FileText,
+  CheckCircle2,
+  Sparkles,
+  ShieldCheck,
+  TrendingUp,
+  GraduationCap,
+  Briefcase,
+  Layers,
+  ArrowRight,
+  X,
+  Info,
+  FolderOpen,
+  Link2,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { SkeletonCard } from "@/components/shared";
 
-// ── Step 1: CV Upload ────────────────────────────────────────────────
+// ── Vridhi Learner Onboarding: Step 1 Resume Upload ────────────────────
 
 export default function UploadPage() {
   const [resumeText, setResumeText] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState<{ name: string; size: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
 
   const handleFileUpload = useCallback(async (file: File) => {
     try {
+      const sizeStr = `${(file.size / 1024).toFixed(1)} KB`;
+      setSelectedFile({ name: file.name, size: sizeStr });
+
       if (file.type === "text/plain") {
         const text = await file.text();
-
         setResumeText(text);
-        toast.success("File loaded successfully");
+        toast.success("Resume text loaded successfully");
         return;
       }
 
@@ -43,22 +63,19 @@ export default function UploadPage() {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || "Failed to extract PDF");
+          throw new Error(data.error || "Failed to extract PDF text");
         }
 
         setResumeText(data.text);
-        toast.success("PDF text extracted successfully");
+        toast.success("PDF resume extracted successfully");
         return;
       }
 
-      toast.error("Please upload a .txt or .pdf file");
+      toast.error("Please upload a valid .txt or .pdf file");
     } catch (error) {
       console.error("File upload error:", error);
-
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not process the file"
+        error instanceof Error ? error.message : "Could not process the uploaded file"
       );
     }
   }, []);
@@ -73,9 +90,21 @@ export default function UploadPage() {
     [handleFileUpload]
   );
 
+  const removeSelectedFile = () => {
+    setSelectedFile(null);
+    setResumeText("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleBrowseClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleSubmit = async () => {
     if (resumeText.trim().length < 20) {
-      toast.error("Please provide more resume content for AI parsing.");
+      toast.error("Please upload your resume file or paste your resume content (at least 20 characters) to proceed.");
       return;
     }
 
@@ -97,13 +126,12 @@ export default function UploadPage() {
       const parsedProfile = await response.json();
       parsedProfile.sourceLinks = { githubUrl: githubUrl.trim(), linkedinUrl: linkedinUrl.trim() };
 
-      // Store in sessionStorage for the review page
       sessionStorage.setItem("nextgig-onboarding-resume", resumeText);
       sessionStorage.setItem("nextgig-onboarding-parsed", JSON.stringify(parsedProfile));
 
       router.push("/onboarding/review");
     } catch (error) {
-      toast.error("Failed to parse your CV. Please try again.");
+      toast.error("Could not parse resume. Please verify the content and try again.");
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -111,130 +139,310 @@ export default function UploadPage() {
   };
 
   return (
-    <div>
-      {/* Step indicator */}
-      <div className="flex items-center gap-2 mb-8">
-        {[1, 2, 3, 4, 5].map((step) => (
-          <div key={step} className="flex items-center gap-2">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
-                step === 1
-                  ? "bg-ng-primary text-white"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {step}
-            </div>
-            {step < 5 && <div className="w-8 h-px bg-border" />}
-          </div>
-        ))}
+    <div className="space-y-8">
+      {/* ──────────────────────────────────────────────────────────
+          1. ONBOARDING INTRO & HEADER
+          ────────────────────────────────────────────────────────── */}
+      <div className="text-center max-w-2xl mx-auto space-y-2">
+        <div className="inline-flex items-center gap-2 rounded-full border border-[#1E5AA8]/25 bg-[#1E5AA8]/8 px-3.5 py-1 text-xs font-bold text-[#123B6D]">
+          <span className="w-2 h-2 rounded-full bg-[#138808] animate-pulse" />
+          <span>VRIDHI LEARNER ONBOARDING</span>
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#123B6D] tracking-tight">
+          Build Your Vridhi Profile
+        </h1>
+        <p className="text-xs sm:text-sm text-[#5B6575] leading-relaxed">
+          Complete a few steps to create your skill profile and discover opportunities aligned with your capabilities.
+        </p>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-      >
-        <h2 className="text-2xl font-bold mb-2">Upload Your Resume</h2>
-        <p className="text-muted-foreground mb-6">
-          Add your CV and public profile links. NextGig combines the available evidence, then lets you correct the result before anything is saved.
-        </p>
+      {/* ──────────────────────────────────────────────────────────
+          2. PROGRESS STEPPER TIMELINE
+          ────────────────────────────────────────────────────────── */}
+      <div className="max-w-3xl mx-auto px-4">
+        <div className="flex items-center justify-between relative">
+          {/* Connector Line */}
+          <div className="absolute top-4 left-6 right-6 h-[2px] bg-[#E2E8F0] -z-0" />
 
-        <Card className="mb-4">
-          <CardContent className="p-5 space-y-4">
-            <div>
-              <h3 className="font-semibold text-sm">Additional profile sources</h3>
-              <p className="text-xs text-muted-foreground mt-1">Public links help us find projects, contributions, and credentials your CV may miss.</p>
+          {/* Step 1: Active */}
+          <div className="flex flex-col items-center relative z-10">
+            <div className="w-8 h-8 rounded-full bg-[#1E5AA8] text-white flex items-center justify-center font-bold text-xs ring-4 ring-[#EBF3FC] shadow-xs">
+              01
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <span className="text-[11px] font-bold text-[#123B6D] mt-1.5">Profile</span>
+          </div>
+
+          {/* Step 2: Upcoming */}
+          <div className="flex flex-col items-center relative z-10">
+            <div className="w-8 h-8 rounded-full bg-white text-[#94A3B8] border-2 border-[#CBD5E1] flex items-center justify-center font-semibold text-xs">
+              02
+            </div>
+            <span className="text-[11px] font-medium text-[#64748B] mt-1.5">Resume</span>
+          </div>
+
+          {/* Step 3: Upcoming */}
+          <div className="flex flex-col items-center relative z-10">
+            <div className="w-8 h-8 rounded-full bg-white text-[#94A3B8] border-2 border-[#CBD5E1] flex items-center justify-center font-semibold text-xs">
+              03
+            </div>
+            <span className="text-[11px] font-medium text-[#64748B] mt-1.5">Skills</span>
+          </div>
+
+          {/* Step 4: Upcoming */}
+          <div className="flex flex-col items-center relative z-10">
+            <div className="w-8 h-8 rounded-full bg-white text-[#94A3B8] border-2 border-[#CBD5E1] flex items-center justify-center font-semibold text-xs">
+              04
+            </div>
+            <span className="text-[11px] font-medium text-[#64748B] mt-1.5">Preferences</span>
+          </div>
+
+          {/* Step 5: Upcoming */}
+          <div className="flex flex-col items-center relative z-10">
+            <div className="w-8 h-8 rounded-full bg-white text-[#94A3B8] border-2 border-[#CBD5E1] flex items-center justify-center font-semibold text-xs">
+              05
+            </div>
+            <span className="text-[11px] font-medium text-[#64748B] mt-1.5">Complete</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ──────────────────────────────────────────────────────────
+          3. MAIN TWO-COLUMN CONTENT & INFORMATION PANELS
+          ────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-[1400px] mx-auto">
+        {/* Left Column (8 cols): Onboarding Forms & Upload */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Main Upload Card */}
+          <Card className="bg-white border-2 border-[#D9E1EA] rounded-2xl shadow-xs">
+            <CardContent className="p-6 sm:p-8 space-y-6">
               <div>
-                <Label htmlFor="github-url" className="text-xs mb-1.5 block">GitHub profile or repository URL</Label>
-                <Input id="github-url" type="url" value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} placeholder="https://github.com/you" />
+                <h2 className="text-xl font-bold text-[#123B6D]">Upload Your Resume</h2>
+                <p className="text-xs sm:text-sm text-[#5B6575] mt-1">
+                  Add your CV and public profile links. Vridhi combines available evidence to build a more complete understanding of your skills and experience.
+                </p>
               </div>
+
+              {/* Additional Profile Sources */}
+              <div className="p-5 rounded-xl bg-[#FAFBFD] border-2 border-[#E2E8F0] space-y-3.5">
+                <div className="flex items-center gap-2 text-[#123B6D]">
+                  <Link2 className="w-4 h-4 text-[#1E5AA8]" />
+                  <h3 className="font-bold text-xs text-[#123B6D]">Additional Profile Sources</h3>
+                </div>
+                <p className="text-[11.5px] text-[#5B6575]">Public links can help Vridhi identify projects, contributions and credentials your CV may miss.</p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <Label htmlFor="github-url" className="text-xs font-bold text-[#123B6D] mb-1.5 block">
+                      GitHub Profile URL
+                    </Label>
+                    <Input
+                      id="github-url"
+                      type="url"
+                      value={githubUrl}
+                      onChange={(e) => setGithubUrl(e.target.value)}
+                      placeholder="https://github.com/your-username"
+                      className="bg-white border-2 border-[#CBD5E1] text-[#123B6D] text-xs h-10 rounded-xl focus:border-[#1E5AA8] focus:ring-2 focus:ring-[#1E5AA8]/20 focus:bg-white placeholder:text-[#64748B] font-medium"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="linkedin-url" className="text-xs font-bold text-[#123B6D] mb-1.5 block">
+                      LinkedIn Profile URL
+                    </Label>
+                    <Input
+                      id="linkedin-url"
+                      type="url"
+                      value={linkedinUrl}
+                      onChange={(e) => setLinkedinUrl(e.target.value)}
+                      placeholder="https://linkedin.com/in/your-profile"
+                      className="bg-white border-2 border-[#CBD5E1] text-[#123B6D] text-xs h-10 rounded-xl focus:border-[#1E5AA8] focus:ring-2 focus:ring-[#1E5AA8]/20 focus:bg-white placeholder:text-[#64748B] font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Large Professional Upload Zone */}
+              <div
+                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-200 cursor-pointer ${
+                  dragOver
+                    ? "border-[#1E5AA8] bg-[#EBF3FC]"
+                    : "border-[#1E5AA8]/50 bg-white hover:border-[#1E5AA8] hover:bg-[#F8FAFC]"
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+              >
+                <div className="w-14 h-14 rounded-full bg-[#1E5AA8]/10 text-[#1E5AA8] flex items-center justify-center mx-auto mb-3 shadow-2xs">
+                  <Upload className="w-7 h-7 text-[#1E5AA8]" />
+                </div>
+                <p className="text-sm font-bold text-[#123B6D] mb-0.5">
+                  Drag &amp; drop your resume here
+                </p>
+                <p className="text-xs text-[#5B6575] mb-4 font-medium">
+                  Supports .txt and .pdf files (up to 10MB)
+                </p>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,.pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file);
+                  }}
+                />
+
+                <button
+                  type="button"
+                  onClick={handleBrowseClick}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border-2 border-[#1E5AA8] text-xs font-bold text-[#1E5AA8] hover:bg-[#EBF3FC] shadow-2xs transition-all cursor-pointer"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>Browse Files</span>
+                </button>
+              </div>
+
+              {/* Selected File Badge / Status */}
+              {selectedFile && (
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#EBF3FC] border-2 border-[#1E5AA8]/30">
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-[#1E5AA8]" />
+                    <div>
+                      <div className="text-xs font-bold text-[#123B6D]">{selectedFile.name}</div>
+                      <div className="text-[10.5px] text-[#5B6575] font-medium">{selectedFile.size} • Loaded successfully</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeSelectedFile}
+                    className="p-1.5 rounded-lg text-[#5B6575] hover:text-[#D95C5C] hover:bg-white transition cursor-pointer"
+                    title="Remove file"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-[#E2E8F0]" />
+                <span className="text-xs text-[#5B6575] font-bold">──────── or paste your resume text ────────</span>
+                <div className="flex-1 h-px bg-[#E2E8F0]" />
+              </div>
+
+              {/* Paste Resume Textarea */}
               <div>
-                <Label htmlFor="linkedin-url" className="text-xs mb-1.5 block">LinkedIn profile URL</Label>
-                <Input id="linkedin-url" type="url" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/you" />
+                <Label htmlFor="resume-text" className="text-xs font-bold text-[#123B6D] mb-1.5 block">
+                  Paste Resume Content
+                </Label>
+                <Textarea
+                  id="resume-text"
+                  placeholder="Paste your resume content, experience, and education details here..."
+                  value={resumeText}
+                  onChange={(e) => setResumeText(e.target.value)}
+                  rows={8}
+                  className="font-mono text-xs bg-white border-2 border-[#CBD5E1] text-[#123B6D] rounded-xl focus:border-[#1E5AA8] focus:ring-2 focus:ring-[#1E5AA8]/20 focus:bg-white placeholder:text-[#64748B] font-medium"
+                />
               </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Drop zone */}
-        <Card
-          className={`border-dashed border-2 transition-colors duration-200 mb-4 ${
-            dragOver ? "border-ng-primary bg-(--ng-soft)/20" : "border-border"
-          }`}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-        >
-          <CardContent className="p-8 text-center">
-            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium mb-1">
-              Drag & drop your resume here
-            </p>
-            <p className="text-xs text-muted-foreground mb-4">
-              Supports .txt and .pdf files
-            </p>
-            <label className="cursor-pointer">
-              <input
-                type="file"
-                accept=".txt,.pdf"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload(file);
-                }}
-              />
-              <span className={buttonVariants({ variant: "outline", size: "sm" })}>
-                Browse Files
-              </span>
-            </label>
-          </CardContent>
-        </Card>
-
-        {/* Or paste */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-xs text-muted-foreground">or paste your resume text</span>
-          <div className="flex-1 h-px bg-border" />
+              {/* AI Parse CTA Button */}
+              {isLoading ? (
+                <div className="space-y-3 py-2">
+                  <SkeletonCard />
+                  <p className="text-xs text-center text-[#1E5AA8] font-bold animate-pulse">
+                    VRIDHI AI is analyzing your competencies and extracting credentials...
+                  </p>
+                </div>
+              ) : (
+                <Button
+                  onClick={handleSubmit}
+                  className="w-full h-12 bg-[#1E5AA8] hover:bg-[#123B6D] text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>Analyze My Resume with AI →</span>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        <Textarea
-          placeholder="Paste your resume content here..."
-          value={resumeText}
-          onChange={(e) => setResumeText(e.target.value)}
-          rows={12}
-          className="mb-6 font-mono text-sm"
-        />
+        {/* Right Column (4 cols): Vridhi Visual, Growth Flow & Trust Panel */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Trust & Privacy Card */}
+          <Card className="bg-white border-2 border-[#D9E1EA] rounded-2xl shadow-xs">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center gap-2 text-[#123B6D]">
+                <ShieldCheck className="w-5 h-5 text-[#138808]" />
+                <h3 className="font-bold text-sm text-[#123B6D]">Why Vridhi asks for this information</h3>
+              </div>
+              <ul className="space-y-2.5 text-xs text-[#172033] font-medium border-t border-[#E2E8F0] pt-3.5">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#138808] shrink-0 mt-0.5" />
+                  <span>Build your verified digital skill profile</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#138808] shrink-0 mt-0.5" />
+                  <span>Identify syllabus and practical skill gaps</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#138808] shrink-0 mt-0.5" />
+                  <span>Recommend curated learning pathways</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#138808] shrink-0 mt-0.5" />
+                  <span>Match you with internships and career opportunities</span>
+                </li>
+              </ul>
+              <div className="pt-2 border-t border-[#E2E8F0] flex items-center gap-2 text-[11px] text-[#5B6575]">
+                <Info className="w-3.5 h-3.5 text-[#1E5AA8] shrink-0" />
+                <span>Your information is used strictly to build your Vridhi profile and improve opportunity matching.</span>
+              </div>
+            </CardContent>
+          </Card>
 
-        {isLoading ? (
-          <div className="space-y-4">
-            <SkeletonCard />
-            <p className="text-sm text-center text-muted-foreground">
-              AI is parsing your resume... This may take a moment.
-            </p>
-          </div>
-        ) : (
-          <Button
-            onClick={handleSubmit}
-            disabled={resumeText.trim().length < 20}
-            className="w-full"
-            size="lg"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" className="mr-2">
-              <path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z" />
-            </svg>
-            Parse My CV with AI
-          </Button>
-        )}
-      </motion.div>
+          {/* Vridhi Growth Ecosystem Mini Panel */}
+          <Card className="bg-[#FAFBFD] border-2 border-[#D9E1EA] rounded-2xl shadow-xs overflow-hidden">
+            <CardContent className="p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-[#1E5AA8] uppercase tracking-wider">
+                  Vridhi Growth Architecture
+                </span>
+                <span className="w-2 h-2 rounded-full bg-[#138808]" />
+              </div>
+              <div className="space-y-2 text-xs font-semibold text-[#123B6D]">
+                <div className="p-2.5 rounded-xl bg-white border border-[#CBD5E1] flex items-center justify-between shadow-2xs">
+                  <span className="flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-[#1E5AA8]" />
+                    Learner Profile
+                  </span>
+                  <span className="text-[10px] text-[#138808] font-bold bg-[#138808]/10 px-2 py-0.5 rounded-md">Step 1</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white border border-[#CBD5E1] flex items-center justify-between shadow-2xs">
+                  <span className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-[#1E5AA8]" />
+                    AI Skill Verification
+                  </span>
+                  <span className="text-[10px] text-[#64748B] font-bold">Next</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white border border-[#CBD5E1] flex items-center justify-between shadow-2xs">
+                  <span className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-[#1E5AA8]" />
+                    Verified Opportunities
+                  </span>
+                  <span className="text-[10px] text-[#64748B] font-bold">Next</span>
+                </div>
+              </div>
+              <div className="pt-2 flex items-center justify-between text-[11px] text-[#5B6575] font-medium">
+                <span>Education</span>
+                <span>→</span>
+                <span>Verification</span>
+                <span>→</span>
+                <span className="text-[#138808] font-bold">Growth</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
