@@ -28,8 +28,8 @@ export function AIRecommendationCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
     >
-      <Card className={`ai-surface border-[var(--ng-soft)] overflow-hidden ${className}`}>
-        <CardContent className="p-4">
+      <Card className={`h-full min-w-0 ai-surface border-[var(--ng-soft)] overflow-hidden ${className}`}>
+        <CardContent className="flex h-full flex-col p-4">
           <div className="flex items-start gap-3">
             {/* Sparkle icon */}
             <div className="w-8 h-8 rounded-lg bg-[var(--ng-primary)]/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -39,7 +39,7 @@ export function AIRecommendationCard({
             </div>
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-semibold mb-1">{title}</h4>
-              <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{reason}</p>
+              <p className="min-h-10 text-xs text-muted-foreground mb-3 leading-relaxed line-clamp-2">{reason}</p>
               <Button size="sm" variant="outline" onClick={onAction} className="h-7 text-xs min-h-0 min-w-0">
                 {actionLabel}
               </Button>
