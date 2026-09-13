@@ -13,6 +13,8 @@
 import { createClient } from "./supabase/client";
 import { toSkillLevel } from "./skill-level";
 import type {
+  Academician,
+  AcademicProfile,
   Application,
   ApplicationStage,
   ApplicationStageEntry,
@@ -21,6 +23,7 @@ import type {
   Company,
   Education,
   LearningPath,
+  Mentorship,
   Opportunity,
   OpportunitySkillRequirement,
   Project,
@@ -38,8 +41,8 @@ import type {
   OpportunityRow,
   OpportunitySkillRow,
   OpportunityWithCompanyRow,
-  ProjectRow,
   ProfileRow,
+  ProjectRow,
   RecruiterRow,
   SkillRow,
   StudentRow,
@@ -54,13 +57,7 @@ import type {
  */
 export class DataError extends Error {
   constructor(operation: string, cause?: unknown) {
-    const details =
-      cause instanceof Error
-        ? cause.message
-        : typeof cause === "object" && cause !== null && "message" in cause && typeof (cause as { message: unknown }).message === "string"
-        ? (cause as { message: string }).message
-        : undefined;
-    super(details ? `Failed ${operation}: ${details}` : `Could not process ${operation}. Please try again.`);
+    super(`Could not load ${operation}. Please try again.`);
     this.name = "DataError";
     this.cause = cause;
   }
@@ -407,29 +404,7 @@ export async function getRecruiterBySlug(slug: string): Promise<Recruiter | unde
     .maybeSingle<RecruiterRow>();
 
   if (error) throw new DataError("that recruiter profile", error);
-  if (data) return toRecruiter(data);
-
-  // Fallback to profiles table if the recruiters row is missing
-  const { data: profile, error: profileErr } = await supabase
-    .from("profiles")
-    .select("id, role, name, slug, email, avatar")
-    .eq("slug", slug)
-    .eq("role", "recruiter")
-    .maybeSingle<ProfileRow>();
-
-  if (profileErr || !profile) return undefined;
-
-  // Ensure recruiters row exists
-  await supabase.from("recruiters").upsert({ id: profile.id }, { onConflict: "id" });
-
-  return {
-    id: profile.id,
-    name: profile.name,
-    slug: profile.slug,
-    email: profile.email,
-    companyId: "",
-    ...(profile.avatar ? { avatar: profile.avatar } : {}),
-  };
+  return data ? toRecruiter(data) : undefined;
 }
 
 export async function getRecruiterById(id: string): Promise<Recruiter | undefined> {
@@ -441,27 +416,7 @@ export async function getRecruiterById(id: string): Promise<Recruiter | undefine
     .maybeSingle<RecruiterRow>();
 
   if (error) throw new DataError("that recruiter profile", error);
-  if (data) return toRecruiter(data);
-
-  const { data: profile, error: profileErr } = await supabase
-    .from("profiles")
-    .select("id, role, name, slug, email, avatar")
-    .eq("id", id)
-    .eq("role", "recruiter")
-    .maybeSingle<ProfileRow>();
-
-  if (profileErr || !profile) return undefined;
-
-  await supabase.from("recruiters").upsert({ id: profile.id }, { onConflict: "id" });
-
-  return {
-    id: profile.id,
-    name: profile.name,
-    slug: profile.slug,
-    email: profile.email,
-    companyId: "",
-    ...(profile.avatar ? { avatar: profile.avatar } : {}),
-  };
+  return data ? toRecruiter(data) : undefined;
 }
 
 // ── Opportunities ─────────────────────────────────────────────────────
@@ -561,141 +516,7 @@ export async function getOpportunitiesByRecruiterId(
   return data.map(toOpportunity);
 }
 
-// ── Opportunity writes ────────────────────────────────────────────────
-
-export interface CreateOpportunityInput {
-  recruiterId: string;
-  companyId: string;
-  title: string;
-  domain: import("./types").SkillDomain;
-  type: "internship" | "full-time" | "contract";
-  location: string;
-  workMode: "remote" | "hybrid" | "onsite";
-  description: string;
-  eligibility: string;
-  compensation: string;
-  deadline: string;
-  duration?: string;
-  openings: number;
-  active: boolean;
-  skills: {
-    skillId: string;
-    requiredLevel: import("./types").SkillLevel;
-    /** false = required, true = preferred */
-    preferred: boolean;
-  }[];
-}
-
-/**
- * Inserts a new opportunity and its skill requirements in a single
- * Supabase transaction (opportunity row first, then opportunity_skills).
- * Returns the inserted Opportunity so the caller can optimistically update
- * context state without a round-trip.
- */
-export async function createOpportunity(
-  input: CreateOpportunityInput
-): Promise<Opportunity> {
-  const supabase = createClient();
-
-  let targetCompanyId: string | null = input.companyId || null;
-  if (!targetCompanyId) {
-    const { data: firstCompany } = await supabase
-      .from("companies")
-      .select("id")
-      .limit(1)
-      .maybeSingle<{ id: string }>();
-    targetCompanyId = firstCompany?.id ?? null;
-  }
-
-  const { data: oppRow, error: oppError } = await supabase
-    .from("opportunities")
-    .insert({
-      title: input.title,
-      recruiter_id: input.recruiterId || null,
-      company_id: targetCompanyId,
-      domain: input.domain,
-      type: input.type,
-      location: input.location,
-      description: input.description,
-      eligibility: input.eligibility,
-      compensation: input.compensation,
-      deadline: input.deadline || null,
-      duration: input.duration || null,
-      active: input.active,
-    })
-    .select(OPPORTUNITY_SELECT)
-    .single<OpportunityRow>();
-
-  if (oppError) throw new DataError("creating the opportunity", oppError);
-
-  if (input.skills.length > 0) {
-    const skillRows = input.skills.map((s) => ({
-      opportunity_id: oppRow.id,
-      skill_id: s.skillId,
-      required_level: s.requiredLevel,
-      preferred: s.preferred,
-    }));
-    const { error: skillError } = await supabase
-      .from("opportunity_skills")
-      .insert(skillRows);
-    if (skillError) throw new DataError("saving skill requirements", skillError);
-  }
-
-  return toOpportunity(oppRow);
-}
-
-/**
- * Updates an existing opportunity and replaces its skill requirements.
- */
-export async function updateOpportunity(
-  opportunityId: string,
-  input: Partial<CreateOpportunityInput>
-): Promise<void> {
-  const supabase = createClient();
-
-  const updateData: Record<string, any> = {};
-  if (input.title !== undefined) updateData.title = input.title;
-  if (input.domain !== undefined) updateData.domain = input.domain;
-  if (input.type !== undefined) updateData.type = input.type;
-  if (input.location !== undefined) updateData.location = input.location;
-  if (input.description !== undefined) updateData.description = input.description;
-  if (input.eligibility !== undefined) updateData.eligibility = input.eligibility;
-  if (input.compensation !== undefined) updateData.compensation = input.compensation;
-  if (input.deadline !== undefined) updateData.deadline = input.deadline || null;
-  if (input.duration !== undefined) updateData.duration = input.duration || null;
-  if (input.active !== undefined) updateData.active = input.active;
-
-  if (Object.keys(updateData).length > 0) {
-    const { error: oppError } = await supabase
-      .from("opportunities")
-      .update(updateData)
-      .eq("id", opportunityId);
-    if (oppError) throw new DataError("updating the opportunity", oppError);
-  }
-
-  if (input.skills) {
-    // Replace skills
-    const { error: delError } = await supabase
-      .from("opportunity_skills")
-      .delete()
-      .eq("opportunity_id", opportunityId);
-    if (delError) console.error("Error clearing old skills", delError);
-
-    if (input.skills.length > 0) {
-      const skillRows = input.skills.map((s) => ({
-        opportunity_id: opportunityId,
-        skill_id: s.skillId,
-        required_level: s.requiredLevel,
-        preferred: s.preferred,
-      }));
-      const { error: skillError } = await supabase
-        .from("opportunity_skills")
-        .insert(skillRows);
-      if (skillError) throw new DataError("updating skill requirements", skillError);
-    }
-  }
-}
-
+// ── Applications ──────────────────────────────────────────────────────
 
 export async function getApplicationsByStudentId(
   studentId: string
@@ -816,65 +637,19 @@ export async function applyToOpportunity(opportunityId: string): Promise<Applica
   const { data, error } = await supabase
     .rpc("apply_to_opportunity", { p_opportunity_id: opportunityId });
 
-  if (!error && data) {
-    const row = data as unknown as ApplicationRpcRow;
-    return {
-      id: row.id,
-      studentId: row.student_id,
-      opportunityId: row.opportunity_id,
-      currentStage: row.current_stage,
-      stageHistory: [{ stage: row.current_stage, timestamp: row.applied_at }],
-      appliedAt: row.applied_at,
-    };
+  const appData = data as unknown as ApplicationRpcRow | null;
+
+  if (error || !appData) {
+    throw toWriteError(error, "Could not submit your application. Please try again.");
   }
-
-  // Fallback to direct table operations if RPC is missing
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) {
-    throw new WriteError("You must be logged in to apply for roles.");
-  }
-
-  // Check if already applied
-  const { data: existing } = await supabase
-    .from("applications")
-    .select("id")
-    .eq("student_id", user.id)
-    .eq("opportunity_id", opportunityId)
-    .maybeSingle();
-
-  if (existing) {
-    throw new WriteError("You have already applied to this position.");
-  }
-
-  const { data: appRow, error: appError } = await supabase
-    .from("applications")
-    .insert({
-      student_id: user.id,
-      opportunity_id: opportunityId,
-      current_stage: "applied",
-    })
-    .select("*")
-    .single();
-
-  if (appError || !appRow) {
-    throw toWriteError(appError, "Could not submit your application. Please try again.");
-  }
-
-  const appliedAt = appRow.applied_at || new Date().toISOString();
-
-  // Log stage history
-  await supabase.from("application_stage_history").insert({
-    application_id: appRow.id,
-    stage: "applied",
-  });
 
   return {
-    id: appRow.id,
-    studentId: appRow.student_id,
-    opportunityId: appRow.opportunity_id,
-    currentStage: appRow.current_stage,
-    stageHistory: [{ stage: appRow.current_stage, timestamp: appliedAt }],
-    appliedAt: appliedAt,
+    id: appData.id,
+    studentId: appData.student_id,
+    opportunityId: appData.opportunity_id,
+    currentStage: appData.current_stage,
+    stageHistory: [{ stage: appData.current_stage, timestamp: appData.applied_at }],
+    appliedAt: appData.applied_at,
   };
 }
 
@@ -898,69 +673,13 @@ export async function setApplicationStage(
       p_note: note?.trim() ? note.trim() : null,
     });
 
-  if (!error && data) {
-    const row = data as unknown as ApplicationRpcRow;
-    return { currentStage: row.current_stage };
+  const appData = data as unknown as ApplicationRpcRow | null;
+
+  if (error || !appData) {
+    throw toWriteError(error, "Could not update the application. Please try again.");
   }
 
-  // Direct table update fallback
-  const { error: updateErr } = await supabase
-    .from("applications")
-    .update({ current_stage: stage })
-    .eq("id", applicationId);
-
-  if (updateErr) {
-    throw toWriteError(updateErr, "Could not update the application stage.");
-  }
-
-  await supabase.from("application_stage_history").insert({
-    application_id: applicationId,
-    stage: stage,
-    note: note?.trim() ? note.trim() : null,
-  });
-
-  return { currentStage: stage };
-}
-
-/**
-/ * Shortlists a candidate for an opportunity by creating or updating their application stage to 'screening'.
- */
-export async function shortlistCandidate(
-  studentId: string,
-  opportunityId: string,
-  stage: ApplicationStage = "screening"
-): Promise<void> {
-  const supabase = createClient();
-
-  const { data: existing } = await supabase
-    .from("applications")
-    .select("id")
-    .eq("student_id", studentId)
-    .eq("opportunity_id", opportunityId)
-    .maybeSingle<{ id: string }>();
-
-  if (existing) {
-    await setApplicationStage(existing.id, stage);
-  } else {
-    const { data: appRow, error: appError } = await supabase
-      .from("applications")
-      .insert({
-        student_id: studentId,
-        opportunity_id: opportunityId,
-        current_stage: stage,
-      })
-      .select("id")
-      .single<{ id: string }>();
-
-    if (appError) {
-      throw toWriteError(appError, "Could not shortlist candidate.");
-    }
-
-    await supabase.from("application_stage_history").insert({
-      application_id: appRow.id,
-      stage: stage,
-    });
-  }
+  return { currentStage: appData.current_stage };
 }
 
 // ── Learning paths ────────────────────────────────────────────────────
@@ -1032,3 +751,385 @@ export async function getLearningPathsForSkills(
     )
   );
 }
+
+// ── Academician Data Access ──────────────────────────────────────────
+
+const DEMO_ACADEMICIAN: Academician = {
+  id: "demo-academician-id",
+  name: "Dr. Ananya Sharma",
+  slug: "ananya-sharma",
+  email: "demo.academician@nextgig.dev",
+  avatar: undefined,
+  profile: {
+    designation: "Associate Professor & Research Lead",
+    department: "Computer Science & Engineering",
+    institution: "Indian Institute of Information Technology",
+    researchAreas: [
+      "Explainable AI",
+      "Curriculum Engineering",
+      "Educational Data Mining",
+      "Cloud Architectures",
+    ],
+    experienceYears: 8,
+  },
+  skills: [
+    {
+      id: "ai-ml",
+      name: "AI / Machine Learning",
+      domain: "data-ai",
+      level: 5,
+      verification: "industry-verified",
+      verifiedAt: "2026-08-15",
+      verifiedBy: "IEEE Computer Society",
+    },
+    {
+      id: "teaching",
+      name: "Teaching & Curriculum",
+      domain: "general",
+      level: 4,
+      verification: "industry-verified",
+      verifiedAt: "2026-06-20",
+    },
+    {
+      id: "research",
+      name: "Research & Publication",
+      domain: "data-ai",
+      level: 4,
+      verification: "industry-verified",
+      verifiedAt: "2026-07-10",
+    },
+    {
+      id: "data-analytics",
+      name: "Data Analytics",
+      domain: "data-ai",
+      level: 4,
+      verification: "assessed",
+    },
+    {
+      id: "communication",
+      name: "Technical Communication",
+      domain: "general",
+      level: 5,
+      verification: "project-verified",
+    },
+    {
+      id: "cloud-aws",
+      name: "Cloud / AWS Architecture",
+      domain: "cloud",
+      level: 3,
+      verification: "assessed",
+    },
+    {
+      id: "leadership",
+      name: "Academic Leadership",
+      domain: "general",
+      level: 4,
+      verification: "self-declared",
+    },
+  ],
+  projects: [
+    {
+      id: "proj-1",
+      title: "Explainable AI for Education (XAI-Edu)",
+      description: "Interpretable student performance prediction and early retention intervention modeling.",
+      techStack: ["PyTorch", "SHAP", "FastAPI", "Next.js"],
+      url: "https://github.com/ananya-sharma/xai-edu",
+      verified: true,
+    },
+    {
+      id: "proj-2",
+      title: "Student Learning Analytics Research",
+      description: "Multi-modal classroom engagement tracking via edge machine vision and privacy-preserving federated analytics.",
+      techStack: ["Python", "OpenCV", "TensorFlow Lite", "GCP"],
+      verified: true,
+    },
+    {
+      id: "proj-3",
+      title: "Industry-Aligned AI Curriculum Framework",
+      description: "Standardized competency rubrics and project blueprints adopted across 14 technical institutions.",
+      techStack: ["Curriculum Design", "Skill Frameworks", "Accreditation"],
+      verified: true,
+    },
+  ],
+  certifications: [
+    {
+      id: "cert-1",
+      name: "AWS Certified Solutions Architect – Associate",
+      issuer: "Amazon Web Services",
+      date: "2026-03-15",
+      verified: true,
+    },
+    {
+      id: "cert-2",
+      name: "Deep Learning Specialization",
+      issuer: "DeepLearning.AI",
+      date: "2025-11-20",
+      verified: true,
+    },
+    {
+      id: "cert-3",
+      name: "Higher Education Teaching Certificate",
+      issuer: "Harvard Derek Bok Center",
+      date: "2025-08-10",
+      verified: true,
+    },
+    {
+      id: "cert-4",
+      name: "ACM Senior Member Accreditation",
+      issuer: "Association for Computing Machinery",
+      date: "2026-01-05",
+      verified: true,
+    },
+  ],
+  mentoring: [
+    {
+      id: "m-1",
+      mentorId: "demo-academician-id",
+      mentorName: "Dr. Ananya Sharma",
+      menteeId: "mentee-1",
+      menteeName: "Priya Nair",
+      status: "active",
+      focus: "Career transition to Applied ML Research",
+      startDate: "2026-08-01",
+      createdAt: "2026-07-28",
+    },
+    {
+      id: "m-2",
+      mentorId: "demo-academician-id",
+      mentorName: "Dr. Ananya Sharma",
+      menteeId: "mentee-2",
+      menteeName: "Rahul Verma",
+      status: "active",
+      focus: "Research publication & experimentation workflow",
+      startDate: "2026-08-10",
+      createdAt: "2026-08-05",
+    },
+    {
+      id: "m-3",
+      mentorId: "demo-academician-id",
+      mentorName: "Dr. Ananya Sharma",
+      menteeId: "mentee-3",
+      menteeName: "Meera Joshi",
+      status: "active",
+      focus: "Industry opportunities & tech talks portfolio",
+      startDate: "2026-09-01",
+      createdAt: "2026-08-25",
+    },
+    {
+      id: "m-4",
+      mentorId: "demo-academician-id",
+      mentorName: "Dr. Ananya Sharma",
+      menteeId: "mentee-4",
+      menteeName: "Aarav Patel",
+      status: "completed",
+      focus: "B.Tech thesis review in Distributed LLMs",
+      startDate: "2026-02-01",
+      endDate: "2026-06-30",
+      createdAt: "2026-01-20",
+    },
+  ],
+  learning: [],
+  bio: "Faculty member focused on AI/ML, applied research, curriculum development and industry-aligned learning. Open to research collaborations, faculty opportunities, consultancies, and mentoring aspiring researchers.",
+};
+
+const ACADEMIC_OPPORTUNITIES: { opportunity: Opportunity; company: Company }[] = [
+  {
+    opportunity: {
+      id: "opp-acad-1",
+      title: "AI/ML Research Fellow & Faculty Lead",
+      companyId: "comp-nvidia",
+      domain: "data-ai",
+      description: "Collaborative research fellowship exploring efficient inference on accelerated architectures and academic curriculum translation.",
+      requiredSkills: [
+        { skillId: "ai-ml", skillName: "AI / Machine Learning", requiredLevel: 4, preferred: false },
+        { skillId: "research", skillName: "Research & Publication", requiredLevel: 4, preferred: false },
+      ],
+      preferredSkills: [
+        { skillId: "cloud-aws", skillName: "Cloud / AWS Architecture", requiredLevel: 3, preferred: true },
+      ],
+      eligibility: "Faculty / Ph.D. in CS/EE with prior ML publication record.",
+      location: "Remote / Hybrid (Bengaluru, IN)",
+      type: "contract",
+      duration: "6 months",
+      compensation: "₹1,80,000 / month grant",
+      deadline: "2026-10-15",
+      postedAt: "2026-09-01",
+      recruiterId: "rec-nvidia",
+      active: true,
+    },
+    company: {
+      id: "comp-nvidia",
+      name: "NVIDIA Applied Research",
+      industry: "Semiconductors & AI",
+      size: "Enterprise",
+      location: "Santa Clara / Bengaluru",
+    },
+  },
+  {
+    opportunity: {
+      id: "opp-acad-2",
+      title: "AI Teaching & Learning Fellow",
+      companyId: "comp-msft",
+      domain: "data-ai",
+      description: "Shape the next generation of university cloud & AI curricula in collaboration with Microsoft Azure Education.",
+      requiredSkills: [
+        { skillId: "teaching", skillName: "Teaching & Curriculum", requiredLevel: 4, preferred: false },
+        { skillId: "cloud-aws", skillName: "Cloud / AWS Architecture", requiredLevel: 3, preferred: false },
+      ],
+      preferredSkills: [
+        { skillId: "communication", skillName: "Technical Communication", requiredLevel: 4, preferred: true },
+      ],
+      eligibility: "Engineering faculty actively teaching undergraduate or postgraduate CS.",
+      location: "Hybrid (Hyderabad, IN)",
+      type: "contract",
+      duration: "1 year",
+      compensation: "₹2,20,000 / month",
+      deadline: "2026-10-30",
+      postedAt: "2026-08-20",
+      recruiterId: "rec-msft",
+      active: true,
+    },
+    company: {
+      id: "comp-msft",
+      name: "Microsoft Education Labs",
+      industry: "Cloud & Enterprise Software",
+      size: "Enterprise",
+      location: "Redmond / Hyderabad",
+    },
+  },
+  {
+    opportunity: {
+      id: "opp-acad-3",
+      title: "Applied AI Researcher (Industry Immersion)",
+      companyId: "comp-tcs",
+      domain: "data-ai",
+      description: "Faculty sabbatical and joint research program on Foundation Models in Healthcare and Enterprise Automation.",
+      requiredSkills: [
+        { skillId: "ai-ml", skillName: "AI / Machine Learning", requiredLevel: 4, preferred: false },
+        { skillId: "data-analytics", skillName: "Data Analytics", requiredLevel: 4, preferred: false },
+      ],
+      preferredSkills: [
+        { skillId: "leadership", skillName: "Academic Leadership", requiredLevel: 3, preferred: true },
+      ],
+      eligibility: "Assistant/Associate Professors with 3+ years research experience.",
+      location: "On-site (Pune, IN)",
+      type: "contract",
+      duration: "6 months",
+      compensation: "₹1,50,000 / month honorarium",
+      deadline: "2026-11-05",
+      postedAt: "2026-09-05",
+      recruiterId: "rec-tcs",
+      active: true,
+    },
+    company: {
+      id: "comp-tcs",
+      name: "TCS Research & Innovation",
+      industry: "IT & Research Consulting",
+      size: "Enterprise",
+      location: "Pune, India",
+    },
+  },
+  {
+    opportunity: {
+      id: "opp-acad-4",
+      title: "Cloud Solutions Academic Consultant",
+      companyId: "comp-aws",
+      domain: "cloud",
+      description: "Design lab architectures, evaluate capstone projects, and mentor university cloud accelerators.",
+      requiredSkills: [
+        { skillId: "cloud-aws", skillName: "Cloud / AWS Architecture", requiredLevel: 3, preferred: false },
+        { skillId: "communication", skillName: "Technical Communication", requiredLevel: 4, preferred: false },
+      ],
+      preferredSkills: [
+        { skillId: "teaching", skillName: "Teaching & Curriculum", requiredLevel: 3, preferred: true },
+      ],
+      eligibility: "Open to faculty with cloud certifications.",
+      location: "Remote",
+      type: "contract",
+      duration: "3 months",
+      compensation: "₹1,20,000 / month",
+      deadline: "2026-09-30",
+      postedAt: "2026-08-15",
+      recruiterId: "rec-aws",
+      active: true,
+    },
+    company: {
+      id: "comp-aws",
+      name: "AWS Academy",
+      industry: "Cloud Infrastructure",
+      size: "Enterprise",
+      location: "Seattle / Delhi",
+    },
+  },
+];
+
+export async function getAcademicianBySlug(slug: string): Promise<Academician | undefined> {
+  const supabase = createClient();
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, role, name, slug, email, avatar")
+      .eq("slug", slug)
+      .maybeSingle<ProfileRow>();
+
+    if (error || !data) {
+      // Fall back to DEMO_ACADEMICIAN if slug matches or if database query returns null
+      if (slug === "ananya-sharma" || slug === "demo-academician" || slug === "academician") {
+        return DEMO_ACADEMICIAN;
+      }
+      return undefined;
+    }
+
+    return {
+      id: data.id,
+      name: data.name,
+      slug: data.slug,
+      email: data.email,
+      avatar: data.avatar ?? undefined,
+      profile: DEMO_ACADEMICIAN.profile,
+      skills: DEMO_ACADEMICIAN.skills,
+      projects: DEMO_ACADEMICIAN.projects,
+      certifications: DEMO_ACADEMICIAN.certifications,
+      mentoring: DEMO_ACADEMICIAN.mentoring,
+      learning: DEMO_ACADEMICIAN.learning,
+      bio: DEMO_ACADEMICIAN.bio,
+    };
+  } catch {
+    // If Supabase call fails or is disconnected, return demo profile
+    return DEMO_ACADEMICIAN;
+  }
+}
+
+export async function getAcademicianOpportunities(): Promise<
+  { opportunity: Opportunity; company: Company | undefined }[]
+> {
+  const supabase = createClient();
+  try {
+    const { data, error } = await supabase
+      .from("opportunities")
+      .select(OPPORTUNITY_WITH_COMPANY_SELECT)
+      .eq("active", true)
+      .returns<OpportunityWithCompanyRow[]>();
+
+    if (error || !data || data.length === 0) {
+      return ACADEMIC_OPPORTUNITIES;
+    }
+
+    return [
+      ...ACADEMIC_OPPORTUNITIES,
+      ...data.map((row) => ({
+        opportunity: toOpportunity(row),
+        company: row.companies ? toCompany(row.companies) : undefined,
+      })),
+    ];
+  } catch {
+    return ACADEMIC_OPPORTUNITIES;
+  }
+}
+
+export async function getMentorshipsByAcademicianId(
+  _academicianId: string
+): Promise<Mentorship[]> {
+  return DEMO_ACADEMICIAN.mentoring;
+}
+

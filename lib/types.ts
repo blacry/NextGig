@@ -148,10 +148,6 @@ export interface Opportunity {
   postedAt: string;
   recruiterId: string;
   active: boolean;
-  department?: string;
-  locationMode?: string;
-  salaryRange?: string;
-  openings?: number;
 }
 
 // ── Application Lifecycle ────────────────────────────────────────────
@@ -302,9 +298,52 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+// ── Academician ──────────────────────────────────────────────────────
+
+export interface AcademicProfile {
+  designation?: string;
+  department?: string;
+  institution?: string;
+  /** Research areas of interest */
+  researchAreas?: string[];
+  /** Years of academic/research experience */
+  experienceYears?: number;
+}
+
+export interface Mentorship {
+  id: string;
+  mentorId: string;
+  mentorName: string;
+  menteeId: string;
+  menteeName: string;
+  status: "pending" | "active" | "completed" | "declined";
+  focus?: string;
+  startDate?: string;
+  endDate?: string;
+  createdAt: string;
+}
+
+export interface Academician {
+  id: string;
+  name: string;
+  slug: string;
+  email: string;
+  avatar?: string;
+  profile: AcademicProfile;
+  skills: Skill[];
+  projects: Project[];
+  certifications: Certification[];
+  /** Mentorships where this academician is the mentor */
+  mentoring: Mentorship[];
+  /** Mentorships where this academician is the mentee */
+  learning: Mentorship[];
+  /** Summary text / bio */
+  bio?: string;
+}
+
 // ── Auth Context ─────────────────────────────────────────────────────
 
-export type UserRole = "student" | "recruiter";
+export type UserRole = "student" | "recruiter" | "academician";
 
 export interface AuthState {
   role: UserRole | null;
