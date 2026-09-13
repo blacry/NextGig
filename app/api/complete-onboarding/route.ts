@@ -73,7 +73,14 @@ function toStringArray(value: unknown): string[] {
 }
 
 function failure(step: string, error: unknown, message: string) {
-  const details = error instanceof Error ? error.message : String(error);
+  const details =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error && typeof (error as { message: unknown }).message === "string"
+      ? (error as { message: string }).message
+      : typeof error === "object" && error !== null
+      ? JSON.stringify(error)
+      : String(error);
   console.error(`[complete-onboarding] ${step} failed`, { details, error });
   return NextResponse.json(
     {
@@ -146,10 +153,10 @@ export async function POST(request: Request) {
 
   const studentPayload = {
     id: studentId,
-    degree: asTrimmedString(education.degree),
-    field: asTrimmedString(education.field),
-    institution: asTrimmedString(education.institution),
-    year: toGraduationYear(education.year),
+    degree: asTrimmedString(education.degree) ?? "Not specified",
+    field: asTrimmedString(education.field) ?? "General",
+    institution: asTrimmedString(education.institution) ?? "Not specified",
+    year: toGraduationYear(education.year) ?? new Date().getFullYear(),
     gpa: toGpa(education.gpa),
     bio: asTrimmedString(confirmedProfile.bio),
     onboarding_complete: true,

@@ -148,6 +148,10 @@ export interface Opportunity {
   postedAt: string;
   recruiterId: string;
   active: boolean;
+  department?: string;
+  locationMode?: string;
+  salaryRange?: string;
+  openings?: number;
 }
 
 // ── Application Lifecycle ────────────────────────────────────────────
