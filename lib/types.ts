@@ -122,6 +122,24 @@ export interface Recruiter {
   avatar?: string;
 }
 
+export type LectureStatus = "draft" | "published" | "cancelled";
+
+export interface Lecture {
+  id: string;
+  academicianId: string;
+  academicianName: string;
+  title: string;
+  description?: string;
+  scheduledStart: string;
+  scheduledEnd?: string;
+  meetUrl: string;
+  status: LectureStatus;
+  audience?: string;
+  course?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── Opportunity ──────────────────────────────────────────────────────
 
 export interface OpportunitySkillRequirement {
