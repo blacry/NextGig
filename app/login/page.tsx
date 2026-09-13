@@ -19,10 +19,12 @@ import { createClient } from "@/lib/supabase/client";
 
 const DEMO_ACCOUNTS: Record<UserRole, { email: string; password: string }> = {
   student: { email: "demo.student@nextgig.dev", password: "demo-password-123" },
+  academician: { email: "demo.academician@nextgig.dev", password: "demo-password-123" },
   recruiter: { email: "demo.recruiter@nextgig.dev", password: "demo-password-123" },
+  institution: { email: "demo.institution@nextgig.dev", password: "demo-password-123" },
 };
 
-type PendingAction = "demo-student" | "demo-recruiter" | "login" | "signup" | "github";
+type PendingAction = "demo-student" | "demo-recruiter" | "demo-academician" | "demo-institution" | "login" | "signup" | "github";
 
 export default function LoginPage() {
   const { login, signUp } = useRole();
@@ -44,7 +46,15 @@ export default function LoginPage() {
 
   // ── Demo login ──────────────────────────────────────────────────────
   const handleDemoLogin = async (role: UserRole) => {
-    setPending(role === "student" ? "demo-student" : "demo-recruiter");
+    setPending(
+      role === "student"
+        ? "demo-student"
+        : role === "recruiter"
+        ? "demo-recruiter"
+        : role === "academician"
+        ? "demo-academician"
+        : "demo-institution"
+    );
     try {
       const { email, password } = DEMO_ACCOUNTS[role];
       await login(email, password);
@@ -299,20 +309,28 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <Label className="text-xs mb-1.5 block">I am a</Label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-1.5">
                     <Button
                       type="button"
                       variant={signupRole === "student" ? "default" : "outline"}
                       onClick={() => setSignupRole("student")}
-                      className="w-full"
+                      className="w-full text-xs px-2"
                     >
                       Student
                     </Button>
                     <Button
                       type="button"
+                      variant={signupRole === "academician" ? "default" : "outline"}
+                      onClick={() => setSignupRole("academician")}
+                      className="w-full text-xs px-2"
+                    >
+                      Academician
+                    </Button>
+                    <Button
+                      type="button"
                       variant={signupRole === "recruiter" ? "default" : "outline"}
                       onClick={() => setSignupRole("recruiter")}
-                      className="w-full"
+                      className="w-full text-xs px-2"
                     >
                       Recruiter
                     </Button>
@@ -334,22 +352,46 @@ export default function LoginPage() {
               Pre-seeded profiles with real data in Postgres.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-2">
+          <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             <Button
               type="button"
               variant="outline"
+              size="sm"
+              className="text-xs px-1"
               disabled={isBusy}
               onClick={() => handleDemoLogin("student")}
             >
-              {pending === "demo-student" ? "Loading..." : "Student Demo"}
+              {pending === "demo-student" ? "Loading..." : "Student"}
             </Button>
             <Button
               type="button"
               variant="outline"
+              size="sm"
+              className="text-xs px-1"
+              disabled={isBusy}
+              onClick={() => handleDemoLogin("academician")}
+            >
+              {pending === "demo-academician" ? "Loading..." : "Academician"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs px-1"
               disabled={isBusy}
               onClick={() => handleDemoLogin("recruiter")}
             >
-              {pending === "demo-recruiter" ? "Loading..." : "Recruiter Demo"}
+              {pending === "demo-recruiter" ? "Loading..." : "Recruiter"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs px-1"
+              disabled={isBusy}
+              onClick={() => handleDemoLogin("institution")}
+            >
+              {pending === "demo-institution" ? "Loading..." : "Institution"}
             </Button>
           </CardContent>
         </Card>

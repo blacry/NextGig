@@ -1,6 +1,7 @@
 # NextGig - SIH 2026 MVP
 
 NextGig is a skill intelligence platform bridging the gap between academia and industry. Built for the SIH 2026 hackathon (Problem Statement 26044).
+Hi!
 
 ## Overview
 This repository contains the Next.js 14 frontend MVP. It features a completely working interactive demo using a deterministic skill-matching engine, powered by AI for text parsing and subjective skill assessment. 

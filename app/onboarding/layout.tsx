@@ -24,14 +24,19 @@ export default function OnboardingLayout({
     if (isLoading) return;
     if (role === null) {
       router.push("/login");
-    } else if (role !== "student") {
-      router.push("/login");
     }
   }, [isLoading, role, router]);
 
-  if (isLoading || role !== "student") {
+  if (isLoading || role === null) {
     return null;
   }
+
+  const headerLabel =
+    role === "academician"
+      ? "Academician Onboarding"
+      : role === "institution"
+      ? "Institution Onboarding"
+      : "Student Onboarding";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F6F9FB] via-[#E8F0FE] to-[#F6F9FB] dark:from-[#0A0B10] dark:via-[#0F1628] dark:to-[#0A0B10]">
@@ -44,7 +49,7 @@ export default function OnboardingLayout({
             </div>
             <span className="font-semibold">NextGig</span>
           </div>
-          <span className="text-xs text-muted-foreground">Student Onboarding</span>
+          <span className="text-xs text-muted-foreground">{headerLabel}</span>
         </div>
       </header>
 

@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { InstitutionSelect } from "@/components/institution-select";
 
 // ── Step 2: Review Parsed Profile ────────────────────────────────────
 
@@ -23,7 +25,7 @@ interface ParsedProfile {
   name: string;
   email: string;
   bio: string;
-  education: { degree: string; field: string; institution: string; year: number; gpa?: number };
+  education: { degree: string; field: string; institution: string; institutionContactEmail?: string; year: number; gpa?: number };
   skills: ParsedSkill[];
   projects: { title: string; description: string; techStack: string[]; url?: string }[];
   certifications: { name: string; issuer: string; date: string }[];
@@ -179,8 +181,8 @@ export default function ReviewPage() {
         </Card>
 
         {/* Education */}
-        <Card className="mb-4">
-          <CardContent className="p-5 space-y-4">
+        <Card className="mb-4 relative z-30 overflow-visible">
+          <CardContent className="p-5 space-y-4 overflow-visible">
             <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Education</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><Label className="text-xs mb-1.5 block">Degree</Label><Input value={profile.education.degree ?? ""} onChange={(e) => updateField("education.degree", e.target.value)} /></div>

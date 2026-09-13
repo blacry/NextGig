@@ -26,10 +26,12 @@ import type { Tables } from "./database.types";
 // ── Leaf rows (no embeds) ─────────────────────────────────────────────
 
 /** `profiles ( id, role, name, slug, email, avatar )` */
-export type ProfileRow = Pick<
-  Tables<"profiles">,
-  "id" | "role" | "name" | "slug" | "email" | "avatar"
->;
+export type ProfileRow = Omit<
+  Pick<Tables<"profiles">, "id" | "role" | "name" | "slug" | "email" | "avatar">,
+  "role"
+> & {
+  role: import("../types").UserRole;
+};
 
 /** `skills` — the taxonomy catalog. */
 export type SkillRow = Pick<
@@ -56,6 +58,31 @@ export type LearningPathRow = Pick<
   Tables<"learning_paths">,
   "id" | "title" | "provider" | "url" | "duration" | "level" | "rating"
 >;
+
+export interface InstitutionRow {
+  id: string;
+  name: string;
+  slug: string;
+  code: string | null;
+  type: string;
+  official_email: string;
+  website_url: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string;
+  state: string;
+  country: string;
+  admin_name: string;
+  admin_role: string;
+  cohort_size: string | null;
+  programs_offered: string[];
+  logo_url: string | null;
+  banner_url: string | null;
+  verified: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 // ── Rows with embedded resources ──────────────────────────────────────
 

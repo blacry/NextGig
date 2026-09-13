@@ -56,6 +56,19 @@ const DEMO_USERS = [
     },
   },
   {
+    email: "demo.academician@nextgig.dev",
+    name: "Dr. Ananya Sharma",
+    role: "academician",
+    slug: "demo-academician",
+    profile: {
+      title: "Associate Professor",
+      department: "Computer Science & AI",
+      institution: "RV Institute of Technology",
+      bio: "Academician and AI researcher focused on deep learning, student mentorship, and industry-academic research partnerships.",
+      onboarding_complete: true,
+    },
+  },
+  {
     email: "demo.recruiter@nextgig.dev",
     name: "Demo Recruiter",
     role: "recruiter",

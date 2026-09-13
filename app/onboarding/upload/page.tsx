@@ -11,15 +11,26 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { SkeletonCard } from "@/components/shared";
 
+import { useEffect } from "react";
+import { useRole } from "@/lib/role-context";
+
 // ── Step 1: CV Upload ────────────────────────────────────────────────
 
 export default function UploadPage() {
+  const { role } = useRole();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (role === "institution") {
+      router.replace("/onboarding/institution");
+    }
+  }, [role, router]);
+
   const [resumeText, setResumeText] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const router = useRouter();
 
   const handleFileUpload = useCallback(async (file: File) => {
     try {

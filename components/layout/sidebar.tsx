@@ -86,17 +86,82 @@ function getRecruiterNavItems(slug: string): NavItem[] {
   ];
 }
 
-interface SidebarProps {
-  variant: "student" | "recruiter";
+function getAcademicianNavItems(slug: string): NavItem[] {
+  return [
+    {
+      label: "Dashboard",
+      href: `/academician/${slug}/dashboard`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+    },
+    {
+      label: "My Profile",
+      href: `/academician/${slug}/profile`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+    },
+    {
+      label: "My Skills",
+      href: `/academician/${slug}/skills`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+    },
+    {
+      label: "Grants & Opportunities",
+      href: `/academician/${slug}/opportunities`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,
+    },
+    {
+      label: "Student Mentoring",
+      href: `/academician/${slug}/mentoring`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    },
+    {
+      label: "Reports & Analytics",
+      href: `/academician/${slug}/reports`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+    },
+  ];
 }
 
-function UserAvatar({ variant }: { variant: "student" | "recruiter" }) {
+function getInstitutionNavItems(slug: string): NavItem[] {
+  return [
+    {
+      label: "Dashboard",
+      href: `/institution/${slug}/dashboard`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+    },
+    {
+      label: "Student Roster",
+      href: `/institution/${slug}/dashboard?tab=students`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    },
+    {
+      label: "Faculty Members",
+      href: `/institution/${slug}/dashboard?tab=faculty`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,
+    },
+    {
+      label: "Placement Drives",
+      href: `/institution/${slug}/dashboard?tab=drives`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
+    },
+    {
+      label: "Skill Analytics",
+      href: `/institution/${slug}/dashboard?tab=analytics`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+    },
+  ];
+}
+
+interface SidebarProps {
+  variant: "student" | "recruiter" | "academician" | "institution";
+}
+
+function UserAvatar({ variant }: { variant: "student" | "recruiter" | "academician" | "institution" }) {
   const { userName } = useRole();
   const { student } = variant === "student" ? useStudent() : { student: null };
   const { recruiter } = variant === "recruiter" ? useRecruiter() : { recruiter: null };
 
   const avatar = variant === "student" ? student?.avatar : recruiter?.avatar;
-  const initial = userName?.charAt(0)?.toUpperCase() || "U";
+  const initial = userName?.charAt(0)?.toUpperCase() || "A";
 
   if (avatar) {
     return (
@@ -122,13 +187,24 @@ export function Sidebar({ variant }: SidebarProps) {
 
   const navItems = variant === "student"
     ? getStudentNavItems(userSlug)
+    : variant === "academician"
+    ? getAcademicianNavItems(userSlug)
+    : variant === "institution"
+    ? getInstitutionNavItems(userSlug)
     : getRecruiterNavItems(userSlug);
+
+  const getDashboardHref = () => {
+    if (variant === "student") return `/student/${userSlug}/dashboard`;
+    if (variant === "academician") return `/academician/${userSlug}/dashboard`;
+    if (variant === "institution") return `/institution/${userSlug}/dashboard`;
+    return `/recruiter/${userSlug}/dashboard`;
+  };
 
   const NavContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-border">
-        <Link href={variant === "student" ? `/student/${userSlug}/dashboard` : `/recruiter/${userSlug}/dashboard`} className="flex items-center gap-2.5 min-h-0 min-w-0">
+        <Link href={getDashboardHref()} className="flex items-center gap-2.5 min-h-0 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-[var(--ng-primary)] flex items-center justify-center">
             <span className="text-white font-bold text-sm">N</span>
           </div>
@@ -199,7 +275,7 @@ export function Sidebar({ variant }: SidebarProps) {
 
       {/* Mobile hamburger + sheet */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between">
-        <Link href={variant === "student" ? `/student/${userSlug}/dashboard` : `/recruiter/${userSlug}/dashboard`} className="flex items-center gap-2 min-h-0 min-w-0">
+        <Link href={getDashboardHref()} className="flex items-center gap-2 min-h-0 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-[var(--ng-primary)] flex items-center justify-center">
             <span className="text-white font-bold text-xs">N</span>
           </div>

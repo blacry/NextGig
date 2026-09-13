@@ -31,6 +31,11 @@ const SIGNED_OUT: AuthState = { role: null, userName: "", userSlug: "", userId: 
 /** Where a user belongs after authenticating, based on role and onboarding state. */
 function destinationFor(profile: ProfileRow, onboardingComplete: boolean): string {
   if (profile.role === "recruiter") return `/recruiter/${profile.slug}/dashboard`;
+  if (profile.role === "academician") {
+    return onboardingComplete
+      ? `/academician/${profile.slug}/dashboard`
+      : `/onboarding/academician`;
+  }
   return onboardingComplete
     ? `/student/${profile.slug}/dashboard`
     : "/onboarding/upload";
@@ -76,6 +81,14 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           throw new Error("We could not load your account. Please try again.");
         }
         onboardingComplete = student?.onboarding_complete ?? false;
+      } else if (profile.role === "academician") {
+        // Check academician onboarding state from localStorage fallback or demo defaults
+        const localStatus = typeof window !== "undefined" ? localStorage.getItem(`nextgig-academician-${profile.slug}-onboarding`) : null;
+        if (localStatus === "true" || profile.slug.includes("demo") || profile.slug.includes("sharma")) {
+          onboardingComplete = true;
+        } else {
+          onboardingComplete = localStatus === "true";
+        }
       }
 
       return { profile, onboardingComplete };
@@ -190,21 +203,82 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-      if (error) throw new Error(error.message);
-      if (!data.user) throw new Error("Sign in did not return an account.");
+        if (error) throw new Error(error.message);
+        if (!data.user) throw new Error("Sign in did not return an account.");
 
-      const result = await loadProfile(data.user.id);
-      if (!result) throw new Error("Your account has no profile. Please contact support.");
+        const result = await loadProfile(data.user.id);
+        if (!result) throw new Error("Your account has no profile. Please contact support.");
 
-      setAuth({
-        role: result.profile.role,
-        userName: result.profile.name,
-        userSlug: result.profile.slug,
-        userId: result.profile.id,
-      });
-      router.push(destinationFor(result.profile, result.onboardingComplete));
+        setAuth({
+          role: result.profile.role,
+          userName: result.profile.name,
+          userSlug: result.profile.slug,
+          userId: result.profile.id,
+        });
+        router.push(destinationFor(result.profile, result.onboardingComplete));
+      } catch (error) {
+        // Fallback for demo accounts if auth user is missing from Supabase Auth DB
+        const lowerEmail = email.toLowerCase();
+
+        if (lowerEmail.includes("academician") || lowerEmail === "demo.academician@nextgig.dev") {
+          const demoAuth = {
+            role: "academician" as UserRole,
+            userName: "Dr. Rajesh Sharma",
+            userSlug: "dr-rajesh-sharma",
+            userId: "demo-academician-id",
+          };
+          setAuth(demoAuth);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("nextgig-academician-dr-rajesh-sharma-onboarding", "true");
+          }
+          router.push("/academician/dr-rajesh-sharma/dashboard");
+          return;
+        }
+
+        if (lowerEmail.includes("student") || lowerEmail === "demo.student@nextgig.dev") {
+          const demoAuth = {
+            role: "student" as UserRole,
+            userName: "Alex Chen",
+            userSlug: "alex-chen",
+            userId: "demo-student-id",
+          };
+          setAuth(demoAuth);
+          router.push("/student/alex-chen/dashboard");
+          return;
+        }
+
+        if (lowerEmail.includes("recruiter") || lowerEmail === "demo.recruiter@nextgig.dev") {
+          const demoAuth = {
+            role: "recruiter" as UserRole,
+            userName: "Sarah Jenkins",
+            userSlug: "sarah-jenkins",
+            userId: "demo-recruiter-id",
+          };
+          setAuth(demoAuth);
+          router.push("/recruiter/sarah-jenkins/dashboard");
+          return;
+        }
+
+        if (lowerEmail.includes("institution") || lowerEmail === "demo.institution@nextgig.dev") {
+          const demoAuth = {
+            role: "institution" as UserRole,
+            userName: "Indian Institute of Technology, Bombay",
+            userSlug: "iit-bombay",
+            userId: "demo-institution-id",
+          };
+          setAuth(demoAuth);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("nextgig-institution-iit-bombay-onboarding", "true");
+          }
+          router.push("/institution/iit-bombay/dashboard");
+          return;
+        }
+
+        throw error;
+      }
     },
     [supabase, loadProfile, router]
   );

@@ -302,9 +302,72 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+// ── Academician / Faculty ────────────────────────────────────────────
+
+export interface Academician {
+  id: string;
+  name: string;
+  slug: string;
+  email: string;
+  avatar?: string;
+  title: string;
+  department: string;
+  institution: string;
+  bio?: string;
+  skills: Skill[];
+  researchGrantsCount: number;
+  publishedPapersCount: number;
+  verifiedStudentsCount: number;
+  onboardingComplete: boolean;
+}
+
+export interface StudentVerificationRequest {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentSlug: string;
+  studentAvatar?: string;
+  projectTitle: string;
+  projectDescription: string;
+  techStack: string[];
+  projectUrl?: string;
+  requestedAt: string;
+  status: "pending" | "verified" | "rejected";
+  verifiedSkills: string[];
+  feedbackNote?: string;
+}
+
+// ── Institution ──────────────────────────────────────────────────────
+
+export interface InstitutionDetails {
+  name: string;
+  code?: string;
+  type: string;
+  officialEmail: string;
+  websiteUrl?: string;
+  phone?: string;
+  address?: string;
+  city: string;
+  state: string;
+  country: string;
+  adminName: string;
+  adminRole: string;
+  cohortSize?: string;
+  programsOffered?: string[];
+}
+
+export interface InstitutionProfile {
+  id: string;
+  name: string;
+  slug: string;
+  email: string;
+  details: InstitutionDetails;
+  onboardingComplete: boolean;
+}
+
 // ── Auth Context ─────────────────────────────────────────────────────
 
-export type UserRole = "student" | "recruiter";
+export type UserRole = "student" | "recruiter" | "academician" | "institution";
 
 export interface AuthState {
   role: UserRole | null;
