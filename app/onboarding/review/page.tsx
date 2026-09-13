@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { InstitutionSelect } from "@/components/institution-select";
+import { useRole } from "@/lib/role-context";
 
 // ── Step 2: Review Parsed Profile ────────────────────────────────────
 
@@ -23,7 +26,7 @@ interface ParsedProfile {
   name: string;
   email: string;
   bio: string;
-  education: { degree: string; field: string; institution: string; year: number; gpa?: number };
+  education: { degree: string; field: string; institution: string; institutionContactEmail?: string; year: number; gpa?: number };
   skills: ParsedSkill[];
   projects: { title: string; description: string; techStack: string[]; url?: string }[];
   certifications: { name: string; issuer: string; date: string }[];
@@ -31,7 +34,9 @@ interface ParsedProfile {
 }
 
 export default function ReviewPage() {
+  const { role } = useRole();
   const [profile, setProfile] = useState<ParsedProfile | null>(null);
+  const [institutionError, setInstitutionError] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -126,6 +131,24 @@ export default function ReviewPage() {
 
   const handleContinue = () => {
     if (!profile) return;
+    const instName = profile.education?.institution?.trim();
+
+    if (!instName || instName === "Others / Not Listed" || instName === "Other") {
+      setInstitutionError(true);
+      toast.error("Please select or enter your college / university name.");
+      return;
+    }
+
+    if (profile.education?.institutionContactEmail !== undefined) {
+      const email = profile.education.institutionContactEmail.trim();
+      if (!email || !email.includes("@")) {
+        setInstitutionError(true);
+        toast.error("Please enter a valid official contact email for your college so our team can reach out.");
+        return;
+      }
+    }
+
+    setInstitutionError(false);
     sessionStorage.setItem("nextgig-onboarding-parsed", JSON.stringify(profile));
     router.push("/onboarding/agreement");
   };
@@ -179,14 +202,28 @@ export default function ReviewPage() {
         </Card>
 
         {/* Education */}
-        <Card className="mb-4">
-          <CardContent className="p-5 space-y-4">
+        <Card className="mb-4 relative z-30 overflow-visible">
+          <CardContent className="p-5 space-y-4 overflow-visible">
             <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Education</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><Label className="text-xs mb-1.5 block">Degree</Label><Input value={profile.education.degree ?? ""} onChange={(e) => updateField("education.degree", e.target.value)} /></div>
               <div><Label className="text-xs mb-1.5 block">Field</Label><Input value={profile.education.field ?? ""} onChange={(e) => updateField("education.field", e.target.value)} /></div>
-              <div><Label className="text-xs mb-1.5 block">Institution</Label><Input value={profile.education.institution ?? ""} onChange={(e) => updateField("education.institution", e.target.value)} /></div>
-              <div className="flex gap-4">
+
+              <div className="md:col-span-2">
+                <InstitutionSelect
+                  value={profile.education.institution ?? ""}
+                  contactEmail={profile.education.institutionContactEmail ?? ""}
+                  onChange={(instName: string, email?: string) => {
+                    updateField("education.institution", instName);
+                    if (email !== undefined) {
+                      updateField("education.institutionContactEmail", email);
+                    }
+                  }}
+                  hasError={institutionError}
+                />
+              </div>
+
+              <div className="flex gap-4 md:col-span-2">
                 <div className="flex-1"><Label className="text-xs mb-1.5 block">Year</Label><Input type="number" value={profile.education.year ?? ""} onChange={(e) => updateField("education.year", parseInt(e.target.value))} /></div>
                 <div className="flex-1"><Label className="text-xs mb-1.5 block">GPA</Label><Input type="number" step="0.1" value={profile.education.gpa ?? ""} onChange={(e) => updateField("education.gpa", parseFloat(e.target.value))} /></div>
               </div>
