@@ -150,12 +150,38 @@ export async function POST(request: Request) {
   }
 
   const education = isRecord(confirmedProfile.education) ? confirmedProfile.education : {};
+  const institutionName = asTrimmedString(education.institution) ?? "Not specified";
+
+  // Link a student to an existing registered institution. An unlisted college
+  // remains a plain text value until that institution creates its workspace.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  let { data: institution } = await db
+    .from("institutions")
+    .select("id")
+    .ilike("name", institutionName)
+    .maybeSingle();
+
+  // Handles profiles saved before the picker was corrected, where a city was
+  // appended to the registered institution name.
+  if (!institution) {
+    const canonicalName = institutionName.split(",")[0]?.trim();
+    if (canonicalName) {
+      const { data: nameOnlyInstitution } = await db
+        .from("institutions")
+        .select("id")
+        .ilike("name", canonicalName)
+        .maybeSingle();
+      institution = nameOnlyInstitution;
+    }
+  }
 
   const studentPayload = {
     id: studentId,
     degree: asTrimmedString(education.degree) ?? "Not specified",
     field: asTrimmedString(education.field) ?? "General",
-    institution: asTrimmedString(education.institution) ?? "Not specified",
+    institution: institutionName,
+    institution_id: institution?.id ?? null,
     year: toGraduationYear(education.year) ?? new Date().getFullYear(),
     gpa: toGpa(education.gpa),
     bio: asTrimmedString(confirmedProfile.bio),

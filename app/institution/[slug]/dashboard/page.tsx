@@ -16,7 +16,6 @@ import {
   Plus,
   ArrowUpRight,
   TrendingUp,
-  Download,
   Mail,
   Globe,
   MapPin,
@@ -30,69 +29,18 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { InstitutionDetails } from "@/lib/types";
 
-// Mock Student Cohort Data
-const INITIAL_STUDENTS = [
-  {
-    id: "st-101",
-    name: "Aarav Sharma",
-    email: "aarav.s@iitb.ac.in",
-    degree: "B.Tech Computer Science",
-    year: 2025,
-    gpa: 8.9,
-    verifiedSkillsCount: 6,
-    topSkill: "Full-Stack Dev (Next.js/Node)",
-    verificationStatus: "Verified",
-    projectTitle: "Distributed Autonomous Mesh System",
-  },
-  {
-    id: "st-102",
-    name: "Ananya Patel",
-    email: "ananya.p@iitb.ac.in",
-    degree: "B.Tech Electrical Engg",
-    year: 2025,
-    gpa: 9.1,
-    verifiedSkillsCount: 5,
-    topSkill: "Machine Learning (PyTorch)",
-    verificationStatus: "Verified",
-    projectTitle: "Neural Edge Signal Processing",
-  },
-  {
-    id: "st-103",
-    name: "Rohan Verma",
-    email: "rohan.v@iitb.ac.in",
-    degree: "M.Tech Data Science",
-    year: 2025,
-    gpa: 8.6,
-    verifiedSkillsCount: 4,
-    topSkill: "Data Pipelines & BigQuery",
-    verificationStatus: "Pending Faculty Sign-off",
-    projectTitle: "Real-time Stream Analytics Engine",
-  },
-  {
-    id: "st-104",
-    name: "Priya Nair",
-    email: "priya.n@iitb.ac.in",
-    degree: "B.Tech Mechanical Engg",
-    year: 2026,
-    gpa: 8.4,
-    verifiedSkillsCount: 3,
-    topSkill: "Embedded C & Robotics",
-    verificationStatus: "Verified",
-    projectTitle: "Autonomous Quadcopter Flight Controller",
-  },
-  {
-    id: "st-105",
-    name: "Vikram Malhotra",
-    email: "vikram.m@iitb.ac.in",
-    degree: "B.Tech Computer Science",
-    year: 2025,
-    gpa: 9.4,
-    verifiedSkillsCount: 8,
-    topSkill: "Systems & Rust Architecture",
-    verificationStatus: "Verified",
-    projectTitle: "High-Throughput Key-Value Database",
-  },
-];
+interface InstitutionStudent {
+  id: string;
+  name: string;
+  email: string;
+  slug: string;
+  degree: string;
+  year: number;
+  gpa: number | null;
+  topSkill: string;
+  projectTitle: string;
+  verificationStatus: "Verified" | "Pending Faculty Sign-off";
+}
 
 // Mock Faculty Roster
 const FACULTY_MEMBERS = [
@@ -159,7 +107,9 @@ export default function InstitutionDashboardPage() {
   const [activeTab, setActiveTab] = useState(activeTabParam);
   const [details, setDetails] = useState<InstitutionDetails | null>(null);
   const [studentSearch, setStudentSearch] = useState("");
-  const [studentsList, setStudentsList] = useState(INITIAL_STUDENTS);
+  const [studentsList, setStudentsList] = useState<InstitutionStudent[]>([]);
+  const [isRosterLoading, setIsRosterLoading] = useState(true);
+  const [rosterError, setRosterError] = useState("");
 
   // Sync tab with URL
   useEffect(() => {
@@ -180,6 +130,28 @@ export default function InstitutionDashboardPage() {
         }
       }
     }
+  }, [slug]);
+
+  // The endpoint scopes its query to this route's institution ID. No global
+  // or demo roster is used here.
+  useEffect(() => {
+    let active = true;
+    async function loadRoster() {
+      setIsRosterLoading(true);
+      setRosterError("");
+      try {
+        const response = await fetch(`/api/institutions/${encodeURIComponent(slug)}/students`);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "Could not load the student roster.");
+        if (active) setStudentsList(Array.isArray(payload.students) ? payload.students : []);
+      } catch (error) {
+        if (active) setRosterError(error instanceof Error ? error.message : "Could not load the student roster.");
+      } finally {
+        if (active) setIsRosterLoading(false);
+      }
+    }
+    void loadRoster();
+    return () => { active = false; };
   }, [slug]);
 
   const instName = details?.name || "Indian Institute of Technology, Bombay";
@@ -245,25 +217,6 @@ export default function InstitutionDashboardPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toast.info("Exporting campus skill audit report (PDF)...")}
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs gap-1.5"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export Skill Audit</span>
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => toast.success("Invitation link sent to academic faculty roster!")}
-              className="bg-[var(--ng-primary)] text-white hover:bg-[var(--ng-primary)]/90 text-xs gap-1.5 shadow-md"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Invite Faculty</span>
-            </Button>
-          </div>
         </div>
       </div>
 
@@ -273,7 +226,7 @@ export default function InstitutionDashboardPage() {
           <CardContent className="p-5 flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground font-medium">Registered Cohort</p>
-              <p className="text-2xl font-bold tracking-tight">1,420</p>
+              <p className="text-2xl font-bold tracking-tight">{studentsList.length.toLocaleString()}</p>
               <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-0.5">
                 <TrendingUp className="w-3 h-3" /> 94% Onboarded
               </p>
@@ -391,6 +344,15 @@ export default function InstitutionDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
+                {isRosterLoading && (
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">Loading this campus roster...</td></tr>
+                )}
+                {!isRosterLoading && rosterError && (
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-destructive">{rosterError}</td></tr>
+                )}
+                {!isRosterLoading && !rosterError && filteredStudents.length === 0 && (
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">No students from {instName} have completed onboarding yet.</td></tr>
+                )}
                 {filteredStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-muted/30 transition-colors">
                     <td className="py-3.5 px-4 font-medium text-foreground">
@@ -406,7 +368,7 @@ export default function InstitutionDashboardPage() {
                     </td>
                     <td className="py-3.5 px-4">
                       <p className="font-medium text-foreground">{student.degree}</p>
-                      <p className="text-[11px] text-muted-foreground">Class of {student.year} · CGPA {student.gpa}</p>
+                      <p className="text-[11px] text-muted-foreground">Class of {student.year} · CGPA {student.gpa ?? "—"}</p>
                     </td>
                     <td className="py-3.5 px-4">
                       <Badge variant="outline" className="text-[11px] font-normal border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-500/5">

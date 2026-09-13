@@ -34,6 +34,7 @@ interface ParsedProfile {
 
 export default function ReviewPage() {
   const [profile, setProfile] = useState<ParsedProfile | null>(null);
+  const [institutionError, setInstitutionError] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -57,15 +58,26 @@ export default function ReviewPage() {
 
   const updateField = (path: string, value: unknown) => {
     if (!profile) return;
-    const keys = path.split(".");
-    const updated = { ...profile };
-    let obj: Record<string, unknown> = updated;
-    for (let i = 0; i < keys.length - 1; i++) {
-      obj[keys[i]] = { ...(obj[keys[i]] as Record<string, unknown>) };
-      obj = obj[keys[i]] as Record<string, unknown>;
+    if (path.startsWith("education.")) {
+      const field = path.replace("education.", "");
+      setProfile({
+        ...profile,
+        education: { ...profile.education, [field]: value },
+      });
+      if (path === "education.institution" && typeof value === "string" && value.trim()) {
+        setInstitutionError(false);
+      }
+    } else {
+      const keys = path.split(".");
+      const updated = { ...profile };
+      let obj: Record<string, unknown> = updated;
+      for (let i = 0; i < keys.length - 1; i++) {
+        obj[keys[i]] = { ...(obj[keys[i]] as Record<string, unknown>) };
+        obj = obj[keys[i]] as Record<string, unknown>;
+      }
+      obj[keys[keys.length - 1]] = value;
+      setProfile(updated as ParsedProfile);
     }
-    obj[keys[keys.length - 1]] = value;
-    setProfile(updated as ParsedProfile);
   };
 
   const removeSkill = (index: number) => {
@@ -82,13 +94,13 @@ export default function ReviewPage() {
 
   const addSkill = () => {
     if (!profile) return;
-    setProfile({ ...profile, skills: [...profile.skills, { id: `manual-skill-${Date.now()}`, name: "New skill", domain: "general", level: 1 }] });
+    setProfile({ ...profile, skills: [...profile.skills, { id: crypto.randomUUID(), name: "New skill", domain: "general", level: 3 }] });
   };
 
   const updateSkillName = (index: number, name: string) => {
     if (!profile) return;
     const skills = [...profile.skills];
-    skills[index] = { ...skills[index], name, id: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") || `manual-skill-${index}` };
+    skills[index] = { ...skills[index], name };
     setProfile({ ...profile, skills });
   };
 
@@ -128,6 +140,24 @@ export default function ReviewPage() {
 
   const handleContinue = () => {
     if (!profile) return;
+    const instName = profile.education?.institution?.trim();
+
+    if (!instName || instName === "Others / College Not Listed" || instName === "Other / Not Listed" || instName === "Other") {
+      setInstitutionError(true);
+      toast.error("Please select or enter your college / university name to continue.");
+      return;
+    }
+
+    if (profile.education?.institutionContactEmail !== undefined) {
+      const email = profile.education.institutionContactEmail.trim();
+      if (profile.education.institutionContactEmail && (!email || !email.includes("@"))) {
+        setInstitutionError(true);
+        toast.error("Please enter a valid official contact email for your college so our team can reach out.");
+        return;
+      }
+    }
+
+    setInstitutionError(false);
     sessionStorage.setItem("nextgig-onboarding-parsed", JSON.stringify(profile));
     router.push("/onboarding/agreement");
   };
@@ -187,8 +217,22 @@ export default function ReviewPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><Label className="text-xs mb-1.5 block">Degree</Label><Input value={profile.education.degree ?? ""} onChange={(e) => updateField("education.degree", e.target.value)} /></div>
               <div><Label className="text-xs mb-1.5 block">Field</Label><Input value={profile.education.field ?? ""} onChange={(e) => updateField("education.field", e.target.value)} /></div>
-              <div><Label className="text-xs mb-1.5 block">Institution</Label><Input value={profile.education.institution ?? ""} onChange={(e) => updateField("education.institution", e.target.value)} /></div>
-              <div className="flex gap-4">
+
+              <div className="md:col-span-2">
+                <InstitutionSelect
+                  value={profile.education.institution ?? ""}
+                  contactEmail={profile.education.institutionContactEmail ?? ""}
+                  onChange={(instName: string, email?: string) => {
+                    updateField("education.institution", instName);
+                    if (email !== undefined) {
+                      updateField("education.institutionContactEmail", email);
+                    }
+                  }}
+                  hasError={institutionError}
+                />
+              </div>
+
+              <div className="flex gap-4 md:col-span-2">
                 <div className="flex-1"><Label className="text-xs mb-1.5 block">Year</Label><Input type="number" value={profile.education.year ?? ""} onChange={(e) => updateField("education.year", parseInt(e.target.value))} /></div>
                 <div className="flex-1"><Label className="text-xs mb-1.5 block">GPA</Label><Input type="number" step="0.1" value={profile.education.gpa ?? ""} onChange={(e) => updateField("education.gpa", parseFloat(e.target.value))} /></div>
               </div>

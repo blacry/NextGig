@@ -101,11 +101,14 @@ export default function UploadPage() {
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error("Failed to parse resume");
+        toast.error(data.error || "Failed to parse resume");
+        return;
       }
 
-      const parsedProfile = await response.json();
+      const parsedProfile = data;
       parsedProfile.sourceLinks = { githubUrl: githubUrl.trim(), linkedinUrl: linkedinUrl.trim() };
 
       // Store in sessionStorage for the review page

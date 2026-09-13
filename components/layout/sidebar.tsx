@@ -184,20 +184,26 @@ export function Sidebar({ variant }: SidebarProps) {
   const { userSlug, userName, logout } = useRole();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // A just-created institution can navigate to its dashboard before the auth
+  // provider's next session refresh. The route is the canonical workspace
+  // slug in that brief transition, so keep navigation scoped to it.
+  const scopedSlug = variant === "institution"
+    ? pathname.split("/")[2] || userSlug
+    : userSlug;
 
   const navItems = variant === "student"
-    ? getStudentNavItems(userSlug)
+    ? getStudentNavItems(scopedSlug)
     : variant === "academician"
-    ? getAcademicianNavItems(userSlug)
+    ? getAcademicianNavItems(scopedSlug)
     : variant === "institution"
-    ? getInstitutionNavItems(userSlug)
-    : getRecruiterNavItems(userSlug);
+    ? getInstitutionNavItems(scopedSlug)
+    : getRecruiterNavItems(scopedSlug);
 
   const getDashboardHref = () => {
-    if (variant === "student") return `/student/${userSlug}/dashboard`;
-    if (variant === "academician") return `/academician/${userSlug}/dashboard`;
-    if (variant === "institution") return `/institution/${userSlug}/dashboard`;
-    return `/recruiter/${userSlug}/dashboard`;
+    if (variant === "student") return `/student/${scopedSlug}/dashboard`;
+    if (variant === "academician") return `/academician/${scopedSlug}/dashboard`;
+    if (variant === "institution") return `/institution/${scopedSlug}/dashboard`;
+    return `/recruiter/${scopedSlug}/dashboard`;
   };
 
   const NavContent = () => (

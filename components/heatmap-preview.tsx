@@ -29,7 +29,7 @@ export function HeatmapPreview({ title, data, maxCols = 6 }: HeatmapPreviewProps
   };
 
   const getOpacity = (value: number) => {
-    return 0.3 + (value / 100) * 0.7;
+    return Math.max(0.65, 0.4 + (value / 100) * 0.6);
   };
 
   return (
@@ -43,7 +43,7 @@ export function HeatmapPreview({ title, data, maxCols = 6 }: HeatmapPreviewProps
           <Tooltip key={cell.skillName}>
             <TooltipTrigger>
               <motion.div
-                className="aspect-square rounded-md flex items-center justify-center cursor-default"
+                className="aspect-square rounded-md flex items-center justify-center cursor-default border border-white/10"
                 style={{
                   backgroundColor: getColor(cell.value),
                   opacity: getOpacity(cell.value),
@@ -53,7 +53,7 @@ export function HeatmapPreview({ title, data, maxCols = 6 }: HeatmapPreviewProps
                 transition={{ duration: 0.2, delay: i * 0.02 }}
                 whileHover={{ scale: 1.1 }}
               >
-                <span className="text-[9px] font-medium text-white truncate px-1">
+                <span className="text-[11px] font-bold text-white drop-shadow-sm truncate px-1">
                   {cell.value}
                 </span>
               </motion.div>

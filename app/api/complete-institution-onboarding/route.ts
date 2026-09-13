@@ -37,6 +37,20 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!city || !city.trim() || !state || !state.trim() || !country || !country.trim()) {
+      return NextResponse.json(
+        { error: "City, state or region, and country are required." },
+        { status: 400 }
+      );
+    }
+
+    if (!adminName || !adminName.trim() || !adminRole || !adminRole.trim()) {
+      return NextResponse.json(
+        { error: "Primary administrator name and role are required." },
+        { status: 400 }
+      );
+    }
+
     const supabase = await createClient();
     const {
       data: { user },
@@ -57,8 +71,57 @@ export async function POST(request: Request) {
       .replace(/^-|-$/g, "")
       .slice(0, 80);
 
+    if (!institutionSlug) {
+      return NextResponse.json(
+        { error: "Enter an institution name containing letters or numbers." },
+        { status: 400 }
+      );
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
+
+    const { data: profile, error: profileError } = await db
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      return NextResponse.json(
+        { error: "Could not verify your account role." },
+        { status: 403 }
+      );
+    }
+    const requestedRole = user.user_metadata?.role;
+    // Legacy signups can have a student profile despite explicitly choosing
+    // Institution. Permit that one bootstrap path; once a workspace exists,
+    // the auth provider recognizes it as the user's institution account.
+    if (profile.role !== "institution" && requestedRole !== "institution") {
+      return NextResponse.json(
+        { error: "Only institution accounts can create an institution workspace." },
+        { status: 403 }
+      );
+    }
+
+    const { data: existingInstitution, error: existingError } = await db
+      .from("institutions")
+      .select("id, created_by")
+      .eq("slug", institutionSlug)
+      .maybeSingle();
+
+    if (existingError) {
+      return NextResponse.json(
+        { error: "Could not check whether that institution already exists." },
+        { status: 500 }
+      );
+    }
+    if (existingInstitution && existingInstitution.created_by !== user.id) {
+      return NextResponse.json(
+        { error: "An institution workspace with this name already exists. Contact its administrator to request access." },
+        { status: 409 }
+      );
+    }
 
     let institutionId: string | null = null;
 
@@ -81,7 +144,8 @@ export async function POST(request: Request) {
       created_by: user.id,
     };
 
-    // Upsert full institution row
+    // This is an update only when the signed-in administrator owns the
+    // existing workspace; a name collision from another account is rejected.
     const { data: instData, error: upsertError } = await db
       .from("institutions")
       .upsert(payload, { onConflict: "slug" })

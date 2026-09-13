@@ -73,7 +73,7 @@
   --ng-primary: #2469CB;
   --ng-secondary: #5670B6;
   --ng-soft: #AED1F0;
-  --ng-muted: #979A9C;
+  --ng-muted: #64748B;
   --ng-success: #20B486;
   --ng-warning: #E7A33E;
   --ng-critical: #D95C5C;
@@ -90,7 +90,7 @@
   --secondary: #EEF2F9;
   --secondary-foreground: #0F1018;
   --muted: #EEF2F9;
-  --muted-foreground: #979A9C;
+  --muted-foreground: #64748B;
   --accent: #EEF2F9;
   --accent-foreground: #0F1018;
   --destructive: #D95C5C;
@@ -120,33 +120,33 @@
 
 /* ── Dark Theme (system-level toggle / recruiter shell) ──────────────── */
 .dark {
-  --ng-canvas: #0F1018;
+  --ng-canvas: #0A0B10;
   --ng-ink: #F6F9FB;
   --ng-primary: #4A8FE7;
   --ng-secondary: #7B8FCC;
   --ng-soft: #1E2A3A;
-  --ng-muted: #6B6E70;
+  --ng-muted: #94A3B8;
   --ng-success: #2ED09A;
   --ng-warning: #F0B85A;
   --ng-critical: #E87070;
 
   --background: #0A0B10;
-  --foreground: #E8EAED;
-  --card: #141520;
-  --card-foreground: #E8EAED;
-  --popover: #141520;
-  --popover-foreground: #E8EAED;
+  --foreground: #F1F5F9;
+  --card: #121420;
+  --card-foreground: #F1F5F9;
+  --popover: #121420;
+  --popover-foreground: #F1F5F9;
   --primary: #4A8FE7;
   --primary-foreground: #FFFFFF;
   --secondary: #1E2030;
-  --secondary-foreground: #E8EAED;
-  --muted: #1E2030;
-  --muted-foreground: #AAB2C0;
+  --secondary-foreground: #F1F5F9;
+  --muted: #1A1D2C;
+  --muted-foreground: #94A3B8;
   --accent: #1E2030;
-  --accent-foreground: #E8EAED;
+  --accent-foreground: #F1F5F9;
   --destructive: #E87070;
-  --border: #2A2D3A;
-  --input: #2A2D3A;
+  --border: #232738;
+  --input: #232738;
   --ring: #4A8FE7;
 
   --chart-1: #4A8FE7;
@@ -155,54 +155,54 @@
   --chart-4: #F0B85A;
   --chart-5: #E87070;
 
-  --sidebar: #0F1018;
-  --sidebar-foreground: #E8EAED;
+  --sidebar: #0B0C12;
+  --sidebar-foreground: #F1F5F9;
   --sidebar-primary: #4A8FE7;
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: #1E2030;
-  --sidebar-accent-foreground: #E8EAED;
-  --sidebar-border: #2A2D3A;
+  --sidebar-accent-foreground: #F1F5F9;
+  --sidebar-border: #232738;
   --sidebar-ring: #4A8FE7;
 }
 
 /* ── Recruiter-specific dark theme (via data attribute) ──────────────── */
 [data-theme="dark"] {
-  --ng-canvas: #0F1018;
+  --ng-canvas: #0A0B10;
   --ng-ink: #F6F9FB;
   --ng-primary: #4A8FE7;
   --ng-secondary: #7B8FCC;
   --ng-soft: #1E2A3A;
-  --ng-muted: #6B6E70;
+  --ng-muted: #94A3B8;
   --ng-success: #2ED09A;
   --ng-warning: #F0B85A;
   --ng-critical: #E87070;
 
   --background: #0A0B10;
-  --foreground: #E8EAED;
-  --card: #141520;
-  --card-foreground: #E8EAED;
-  --popover: #141520;
-  --popover-foreground: #E8EAED;
+  --foreground: #F1F5F9;
+  --card: #121420;
+  --card-foreground: #F1F5F9;
+  --popover: #121420;
+  --popover-foreground: #F1F5F9;
   --primary: #4A8FE7;
   --primary-foreground: #FFFFFF;
   --secondary: #1E2030;
-  --secondary-foreground: #E8EAED;
-  --muted: #1E2030;
-  --muted-foreground: #6B6E70;
+  --secondary-foreground: #F1F5F9;
+  --muted: #1A1D2C;
+  --muted-foreground: #94A3B8;
   --accent: #1E2030;
-  --accent-foreground: #E8EAED;
+  --accent-foreground: #F1F5F9;
   --destructive: #E87070;
-  --border: #2A2D3A;
-  --input: #2A2D3A;
+  --border: #232738;
+  --input: #232738;
   --ring: #4A8FE7;
 
-  --sidebar: #0F1018;
-  --sidebar-foreground: #E8EAED;
+  --sidebar: #0B0C12;
+  --sidebar-foreground: #F1F5F9;
   --sidebar-primary: #4A8FE7;
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: #1E2030;
-  --sidebar-accent-foreground: #E8EAED;
-  --sidebar-border: #2A2D3A;
+  --sidebar-accent-foreground: #F1F5F9;
+  --sidebar-border: #232738;
   --sidebar-ring: #4A8FE7;
 }
 

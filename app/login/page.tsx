@@ -309,7 +309,7 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <Label className="text-xs mb-1.5 block">I am a</Label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
                     <Button
                       type="button"
                       variant={signupRole === "student" ? "default" : "outline"}
@@ -333,6 +333,14 @@ export default function LoginPage() {
                       className="w-full text-xs px-2"
                     >
                       Recruiter
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={signupRole === "institution" ? "default" : "outline"}
+                      onClick={() => setSignupRole("institution")}
+                      className="w-full text-xs px-2"
+                    >
+                      Institution
                     </Button>
                   </div>
                 </div>

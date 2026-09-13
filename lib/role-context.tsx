@@ -30,6 +30,11 @@ const SIGNED_OUT: AuthState = { role: null, userName: "", userSlug: "", userId: 
 
 /** Where a user belongs after authenticating, based on role and onboarding state. */
 function destinationFor(profile: ProfileRow, onboardingComplete: boolean): string {
+  if (profile.role === "institution") {
+    return onboardingComplete
+      ? `/institution/${profile.slug}/dashboard`
+      : "/onboarding/institution";
+  }
   if (profile.role === "recruiter") return `/recruiter/${profile.slug}/dashboard`;
   if (profile.role === "academician") {
     return onboardingComplete
@@ -68,6 +73,39 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       }
       if (!profile) return null;
 
+      const {
+        data: { user: authenticatedUser },
+      } = await supabase.auth.getUser();
+      const registeredAsInstitution =
+        authenticatedUser?.id === userId &&
+        authenticatedUser.user_metadata?.role === "institution";
+
+      // Older account records may still have `student` in profiles even
+      // though the user selected Institution during registration. Their Auth
+      // metadata is the registration record until they create a workspace.
+      if (profile.role === "student" && registeredAsInstitution) {
+        profile.role = "institution";
+      }
+
+      // A workspace is the source of truth for an institution account. This
+      // also supports accounts created before the institution role migration,
+      // whose legacy profile row may still say `student`.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const { data: ownedInstitution, error: institutionError } = await db
+        .from("institutions")
+        .select("slug")
+        .eq("created_by", userId)
+        .maybeSingle();
+
+      if (institutionError) {
+        console.warn("[RoleProvider] institution lookup skipped", institutionError);
+      }
+      if (ownedInstitution?.slug) {
+        profile.role = "institution";
+        profile.slug = ownedInstitution.slug;
+      }
+
       let onboardingComplete = false;
       if (profile.role === "student") {
         const { data: student, error: studentError } = await supabase
@@ -89,6 +127,8 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         } else {
           onboardingComplete = localStatus === "true";
         }
+      } else if (profile.role === "institution") {
+        onboardingComplete = Boolean(ownedInstitution?.slug);
       }
 
       return { profile, onboardingComplete };
@@ -196,7 +236,13 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         userSlug: result.profile.slug,
         userId: result.profile.id,
       });
-      router.push(destinationFor(result.profile, result.onboardingComplete));
+      // Use the role selected in this signup, not a legacy database trigger
+      // that may still default newly-created profiles to student.
+      router.push(
+        role === "institution"
+          ? "/onboarding/institution"
+          : destinationFor(result.profile, result.onboardingComplete)
+      );
     },
     [supabase, loadProfile, router]
   );

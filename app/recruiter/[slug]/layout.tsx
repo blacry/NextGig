@@ -43,7 +43,7 @@ function RecruiterLayoutContent({ children }: { children: React.ReactNode }) {
             <ThemeToggle />
           </div>
         </header>
-        <div className="flex-1 p-6 max-w-7xl mx-auto w-full">
+        <div className="flex-1 p-6 lg:p-8 max-w-7xl 2xl:max-w-full mx-auto w-full">
           {children}
         </div>
       </main>
