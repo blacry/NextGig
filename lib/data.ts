@@ -20,6 +20,9 @@ import type {
   Certification,
   Company,
   Education,
+  Academician,
+  Lecture,
+  LectureStatus,
   LearningPath,
   Opportunity,
   OpportunitySkillRequirement,
@@ -31,6 +34,8 @@ import type {
 } from "./types";
 import type {
   ApplicationRow,
+  AcademicianRow,
+  LectureRow,
   AssessmentRow,
   CertificationRow,
   CompanyRow,
@@ -462,6 +467,107 @@ export async function getRecruiterById(id: string): Promise<Recruiter | undefine
     companyId: "",
     ...(profile.avatar ? { avatar: profile.avatar } : {}),
   };
+}
+
+const ACADEMICIAN_SELECT = `
+  id, role, name, slug, email, avatar
+` as const;
+
+const LECTURE_SELECT = `
+  id, academician_id, institution_id, title, description, scheduled_start, scheduled_end,
+  meet_url, status, audience, course, created_at, updated_at,
+  profiles:profiles!lectures_academician_id_fkey ( id, role, name, slug, email, avatar )
+` as const;
+
+function toAcademician(row: AcademicianRow): Academician {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    email: row.email,
+    title: "Academician",
+    department: "General",
+    institution: "",
+    skills: [],
+    researchGrantsCount: 0,
+    publishedPapersCount: 0,
+    verifiedStudentsCount: 0,
+    onboardingComplete: true,
+    ...(row.avatar ? { avatar: row.avatar } : {}),
+  };
+}
+
+function toLecture(row: LectureRow): Lecture {
+  const profile = row.profiles;
+  return {
+    id: row.id,
+    academicianId: row.academician_id,
+    academicianName: profile?.name ?? "Academician",
+    title: row.title,
+    ...(row.description ? { description: row.description } : {}),
+    scheduledStart: row.scheduled_start,
+    ...(row.scheduled_end ? { scheduledEnd: row.scheduled_end } : {}),
+    meetUrl: row.meet_url,
+    status: row.status as LectureStatus,
+    ...(row.audience ? { audience: row.audience } : {}),
+    ...(row.course ? { course: row.course } : {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function getAcademicianBySlug(slug: string): Promise<Academician | undefined> {
+  const { data, error } = await createClient()
+    .from("profiles")
+    .select(ACADEMICIAN_SELECT)
+    .eq("slug", slug)
+    .eq("role", "academician")
+    .maybeSingle<AcademicianRow>();
+  if (error) throw new DataError("that academician profile", error);
+  return data ? toAcademician(data) : undefined;
+}
+
+export async function getLectures(options?: { ownerId?: string; upcomingOnly?: boolean }): Promise<Lecture[]> {
+  const query = createClient().from("lectures").select(LECTURE_SELECT).order("scheduled_start", { ascending: true });
+  if (options?.ownerId) query.eq("academician_id", options.ownerId);
+  if (options?.upcomingOnly !== false) query.gte("scheduled_start", new Date().toISOString()).eq("status", "published");
+  const { data, error } = await query.returns<LectureRow[]>();
+  if (error) throw new DataError("lectures", error);
+  return (data ?? []).map(toLecture);
+}
+
+export interface LectureInput {
+  title: string; description?: string; scheduledStart: string; scheduledEnd?: string;
+  meetUrl: string; status?: LectureStatus; audience?: string; course?: string;
+}
+
+export async function createLecture(ownerId: string, input: LectureInput): Promise<Lecture> {
+  const { data, error } = await createClient().from("lectures").insert({
+    academician_id: ownerId, title: input.title.trim(), description: input.description?.trim() || null,
+    scheduled_start: input.scheduledStart, scheduled_end: input.scheduledEnd || null, meet_url: input.meetUrl.trim(),
+    status: input.status ?? "published", audience: input.audience?.trim() || null, course: input.course?.trim() || null,
+  }).select(LECTURE_SELECT).single<LectureRow>();
+  if (error || !data) throw new WriteError("create lecture", error);
+  return toLecture(data);
+}
+
+export async function updateLecture(id: string, input: Partial<LectureInput>): Promise<void> {
+  const payload: Record<string, unknown> = {};
+  if (input.title !== undefined) payload.title = input.title.trim();
+  if (input.description !== undefined) payload.description = input.description?.trim() || null;
+  if (input.scheduledStart !== undefined) payload.scheduled_start = input.scheduledStart;
+  if (input.scheduledEnd !== undefined) payload.scheduled_end = input.scheduledEnd || null;
+  if (input.meetUrl !== undefined) payload.meet_url = input.meetUrl.trim();
+  if (input.status !== undefined) payload.status = input.status;
+  if (input.audience !== undefined) payload.audience = input.audience?.trim() || null;
+  if (input.course !== undefined) payload.course = input.course?.trim() || null;
+  const { error } = await createClient().from("lectures").update(payload).eq("id", id);
+  if (error) throw new WriteError("update lecture", error);
+}
+
+export async function deleteLecture(id: string): Promise<void> {
+  const { error } = await createClient().from("lectures").delete().eq("id", id);
+  if (error) throw new WriteError("delete lecture", error);
 }
 
 // ── Opportunities ─────────────────────────────────────────────────────

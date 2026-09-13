@@ -32,6 +32,7 @@ export default function CoursesPage() {
   const [youtubeCourses, setYoutubeCourses] = useState<YouTubeCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingYoutube, setLoadingYoutube] = useState(true);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterLevel, setFilterLevel] = useState<number | null>(null);
 
@@ -71,6 +72,7 @@ export default function CoursesPage() {
     let active = true;
     const loadYoutubeCourses = async () => {
       setLoadingYoutube(true);
+      setYoutubeError(null);
       try {
         const skills = student.skills.map((skill) => skill.name);
         const response = await fetch("/api/youtube-courses", {
@@ -87,6 +89,7 @@ export default function CoursesPage() {
         if (active) setYoutubeCourses(data.courses || []);
       } catch (error) {
         console.error("[courses] failed to load YouTube recommendations", error);
+        if (active) setYoutubeError("Recommendations could not be loaded.");
       } finally {
         if (active) setLoadingYoutube(false);
       }
@@ -156,7 +159,7 @@ export default function CoursesPage() {
             ))}
           </div>
         ) : (
-          <Card><CardContent className="p-5 text-sm text-muted-foreground">Personalized recommendations will appear here soon.</CardContent></Card>
+          <Card><CardContent className="flex items-center justify-between gap-3 p-5 text-sm text-muted-foreground"><span>{youtubeError || "Personalized recommendations will appear here soon."}</span><Button size="sm" variant="outline" onClick={() => window.location.reload()}>Retry</Button></CardContent></Card>
         )}
       </section>
 
