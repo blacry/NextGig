@@ -14,9 +14,8 @@ import {
   getOpportunitiesByRecruiterId,
   getRecruiterBySlug,
   getStudents,
-  getApplicationsByOpportunityIds,
 } from "./data";
-import type { Application, Company, Opportunity, Recruiter, Student } from "./types";
+import type { Company, Opportunity, Recruiter, Student } from "./types";
 
 // ── Recruiter Context ────────────────────────────────────────────────
 // The recruiter-side counterpart to StudentProvider: loads the recruiter's
@@ -32,7 +31,6 @@ interface RecruiterContextValue {
   company: Company | null;
   opportunities: Opportunity[];
   candidates: Student[];
-  applications: Application[];
   refresh: () => Promise<void>;
   isLoaded: boolean;
 }
@@ -50,7 +48,6 @@ export function RecruiterProvider({
   const [company, setCompany] = useState<Company | null>(null);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [candidates, setCandidates] = useState<Student[]>([]);
-  const [applications, setApplications] = useState<Application[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   const load = useCallback(async () => {
@@ -67,7 +64,6 @@ export function RecruiterProvider({
         setCompany(null);
         setOpportunities([]);
         setCandidates([]);
-        setApplications([]);
         return;
       }
 
@@ -76,11 +72,9 @@ export function RecruiterProvider({
         getStudents(),
         getCompanies(),
       ]);
-      const postingApplications = await getApplicationsByOpportunityIds(postings.map((posting) => posting.id));
 
       setOpportunities(postings);
       setCandidates(pool);
-      setApplications(postingApplications);
       setCompany(companies.find((c) => c.id === profile.companyId) ?? null);
     } catch (error) {
       console.error("[RecruiterProvider] failed to load workspace", error);
@@ -102,7 +96,7 @@ export function RecruiterProvider({
 
   return (
     <RecruiterContext.Provider
-      value={{ recruiter, company, opportunities, candidates, applications, refresh: load, isLoaded }}
+      value={{ recruiter, company, opportunities, candidates, refresh: load, isLoaded }}
     >
       {children}
     </RecruiterContext.Provider>

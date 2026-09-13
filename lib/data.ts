@@ -574,46 +574,6 @@ export async function getApplicationsByOpportunityIds(
   return data.map(toApplication);
 }
 
-/** Recruiter-owned role controls. RLS remains the final authorization boundary. */
-export async function setOpportunityActive(opportunityId: string, active: boolean): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("opportunities")
-    .update({ active })
-    .eq("id", opportunityId);
-  if (error) throw new WriteError("Could not update this opportunity.", error);
-}
-
-export interface OpportunityRequirementUpdate {
-  skillId: string;
-  requiredLevel: number;
-  preferred: boolean;
-}
-
-/** Replaces the requirement set atomically from the caller's perspective. */
-export async function updateOpportunityRequirements(
-  opportunityId: string,
-  requirements: OpportunityRequirementUpdate[]
-): Promise<void> {
-  const supabase = createClient();
-  const { error: deleteError } = await supabase
-    .from("opportunity_skills")
-    .delete()
-    .eq("opportunity_id", opportunityId);
-  if (deleteError) throw new WriteError("Could not update role requirements.", deleteError);
-
-  if (requirements.length === 0) return;
-  const { error: insertError } = await supabase.from("opportunity_skills").insert(
-    requirements.map((requirement) => ({
-      opportunity_id: opportunityId,
-      skill_id: requirement.skillId,
-      required_level: Math.max(1, Math.min(5, Math.round(requirement.requiredLevel))),
-      preferred: requirement.preferred,
-    }))
-  );
-  if (insertError) throw new WriteError("Could not save role requirements.", insertError);
-}
-
 // ── Application writes ────────────────────────────────────────────────
 // Both of these call a SECURITY DEFINER function rather than writing the
 // tables directly. That is the whole mechanism for stage history: the
