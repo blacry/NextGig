@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/lib/role-context";
+import { useStudent } from "@/lib/student-context";
+import { useRecruiter } from "@/lib/recruiter-context";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
@@ -37,6 +39,11 @@ function getStudentNavItems(slug: string): NavItem[] {
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
     },
     {
+      label: "Courses",
+      href: `/student/${slug}/courses`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+    },
+    {
       label: "Opportunities",
       href: `/student/${slug}/opportunities`,
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
@@ -45,11 +52,6 @@ function getStudentNavItems(slug: string): NavItem[] {
       label: "Skill Passport",
       href: `/student/${slug}/portfolio`,
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
-    },
-    {
-      label: "AI Assistant",
-      href: `/student/${slug}/ai`,
-      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z"/></svg>,
     },
   ];
 }
@@ -67,15 +69,50 @@ function getRecruiterNavItems(slug: string): NavItem[] {
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
     },
     {
+      label: "Applications",
+      href: `/recruiter/${slug}/applications`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+    },
+    {
       label: "Talent Pool",
       href: `/recruiter/${slug}/talent`,
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    },
+    {
+      label: "Hiring Analytics",
+      href: `/recruiter/${slug}/analytics`,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
     },
   ];
 }
 
 interface SidebarProps {
   variant: "student" | "recruiter";
+}
+
+function UserAvatar({ variant }: { variant: "student" | "recruiter" }) {
+  const { userName } = useRole();
+  const { student } = variant === "student" ? useStudent() : { student: null };
+  const { recruiter } = variant === "recruiter" ? useRecruiter() : { recruiter: null };
+
+  const avatar = variant === "student" ? student?.avatar : recruiter?.avatar;
+  const initial = userName?.charAt(0)?.toUpperCase() || "U";
+
+  if (avatar) {
+    return (
+      <img
+        src={avatar}
+        alt={userName || "User"}
+        className="w-8 h-8 rounded-full object-cover bg-[var(--ng-primary)]/10"
+      />
+    );
+  }
+
+  return (
+    <div className="w-8 h-8 rounded-full bg-[var(--ng-primary)]/10 flex items-center justify-center">
+      <span className="text-xs font-semibold text-[var(--ng-primary)]">{initial}</span>
+    </div>
+  );
 }
 
 export function Sidebar({ variant }: SidebarProps) {
@@ -132,11 +169,7 @@ export function Sidebar({ variant }: SidebarProps) {
       {/* User section */}
       <div className="px-3 py-4 border-t border-border">
         <div className="flex items-center gap-3 px-3 py-2 mb-2">
-          <div className="w-8 h-8 rounded-full bg-[var(--ng-primary)]/10 flex items-center justify-center">
-            <span className="text-xs font-semibold text-[var(--ng-primary)]">
-              {userName?.charAt(0)?.toUpperCase() || "U"}
-            </span>
-          </div>
+          <UserAvatar variant={variant} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{userName}</p>
             <p className="text-xs text-muted-foreground capitalize">{variant}</p>

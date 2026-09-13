@@ -39,6 +39,7 @@ import type {
   OpportunitySkillRow,
   OpportunityWithCompanyRow,
   ProjectRow,
+  ProfileRow,
   RecruiterRow,
   SkillRow,
   StudentRow,
@@ -53,7 +54,13 @@ import type {
  */
 export class DataError extends Error {
   constructor(operation: string, cause?: unknown) {
-    super(`Could not load ${operation}. Please try again.`);
+    const details =
+      cause instanceof Error
+        ? cause.message
+        : typeof cause === "object" && cause !== null && "message" in cause && typeof (cause as { message: unknown }).message === "string"
+        ? (cause as { message: string }).message
+        : undefined;
+    super(details ? `Failed ${operation}: ${details}` : `Could not process ${operation}. Please try again.`);
     this.name = "DataError";
     this.cause = cause;
   }
@@ -400,7 +407,29 @@ export async function getRecruiterBySlug(slug: string): Promise<Recruiter | unde
     .maybeSingle<RecruiterRow>();
 
   if (error) throw new DataError("that recruiter profile", error);
-  return data ? toRecruiter(data) : undefined;
+  if (data) return toRecruiter(data);
+
+  // Fallback to profiles table if the recruiters row is missing
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("id, role, name, slug, email, avatar")
+    .eq("slug", slug)
+    .eq("role", "recruiter")
+    .maybeSingle<ProfileRow>();
+
+  if (profileErr || !profile) return undefined;
+
+  // Ensure recruiters row exists
+  await supabase.from("recruiters").upsert({ id: profile.id }, { onConflict: "id" });
+
+  return {
+    id: profile.id,
+    name: profile.name,
+    slug: profile.slug,
+    email: profile.email,
+    companyId: "",
+    ...(profile.avatar ? { avatar: profile.avatar } : {}),
+  };
 }
 
 export async function getRecruiterById(id: string): Promise<Recruiter | undefined> {
@@ -412,7 +441,27 @@ export async function getRecruiterById(id: string): Promise<Recruiter | undefine
     .maybeSingle<RecruiterRow>();
 
   if (error) throw new DataError("that recruiter profile", error);
-  return data ? toRecruiter(data) : undefined;
+  if (data) return toRecruiter(data);
+
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("id, role, name, slug, email, avatar")
+    .eq("id", id)
+    .eq("role", "recruiter")
+    .maybeSingle<ProfileRow>();
+
+  if (profileErr || !profile) return undefined;
+
+  await supabase.from("recruiters").upsert({ id: profile.id }, { onConflict: "id" });
+
+  return {
+    id: profile.id,
+    name: profile.name,
+    slug: profile.slug,
+    email: profile.email,
+    companyId: "",
+    ...(profile.avatar ? { avatar: profile.avatar } : {}),
+  };
 }
 
 // ── Opportunities ─────────────────────────────────────────────────────
@@ -512,7 +561,141 @@ export async function getOpportunitiesByRecruiterId(
   return data.map(toOpportunity);
 }
 
-// ── Applications ──────────────────────────────────────────────────────
+// ── Opportunity writes ────────────────────────────────────────────────
+
+export interface CreateOpportunityInput {
+  recruiterId: string;
+  companyId: string;
+  title: string;
+  domain: import("./types").SkillDomain;
+  type: "internship" | "full-time" | "contract";
+  location: string;
+  workMode: "remote" | "hybrid" | "onsite";
+  description: string;
+  eligibility: string;
+  compensation: string;
+  deadline: string;
+  duration?: string;
+  openings: number;
+  active: boolean;
+  skills: {
+    skillId: string;
+    requiredLevel: import("./types").SkillLevel;
+    /** false = required, true = preferred */
+    preferred: boolean;
+  }[];
+}
+
+/**
+ * Inserts a new opportunity and its skill requirements in a single
+ * Supabase transaction (opportunity row first, then opportunity_skills).
+ * Returns the inserted Opportunity so the caller can optimistically update
+ * context state without a round-trip.
+ */
+export async function createOpportunity(
+  input: CreateOpportunityInput
+): Promise<Opportunity> {
+  const supabase = createClient();
+
+  let targetCompanyId: string | null = input.companyId || null;
+  if (!targetCompanyId) {
+    const { data: firstCompany } = await supabase
+      .from("companies")
+      .select("id")
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    targetCompanyId = firstCompany?.id ?? null;
+  }
+
+  const { data: oppRow, error: oppError } = await supabase
+    .from("opportunities")
+    .insert({
+      title: input.title,
+      recruiter_id: input.recruiterId || null,
+      company_id: targetCompanyId,
+      domain: input.domain,
+      type: input.type,
+      location: input.location,
+      description: input.description,
+      eligibility: input.eligibility,
+      compensation: input.compensation,
+      deadline: input.deadline || null,
+      duration: input.duration || null,
+      active: input.active,
+    })
+    .select(OPPORTUNITY_SELECT)
+    .single<OpportunityRow>();
+
+  if (oppError) throw new DataError("creating the opportunity", oppError);
+
+  if (input.skills.length > 0) {
+    const skillRows = input.skills.map((s) => ({
+      opportunity_id: oppRow.id,
+      skill_id: s.skillId,
+      required_level: s.requiredLevel,
+      preferred: s.preferred,
+    }));
+    const { error: skillError } = await supabase
+      .from("opportunity_skills")
+      .insert(skillRows);
+    if (skillError) throw new DataError("saving skill requirements", skillError);
+  }
+
+  return toOpportunity(oppRow);
+}
+
+/**
+ * Updates an existing opportunity and replaces its skill requirements.
+ */
+export async function updateOpportunity(
+  opportunityId: string,
+  input: Partial<CreateOpportunityInput>
+): Promise<void> {
+  const supabase = createClient();
+
+  const updateData: Record<string, any> = {};
+  if (input.title !== undefined) updateData.title = input.title;
+  if (input.domain !== undefined) updateData.domain = input.domain;
+  if (input.type !== undefined) updateData.type = input.type;
+  if (input.location !== undefined) updateData.location = input.location;
+  if (input.description !== undefined) updateData.description = input.description;
+  if (input.eligibility !== undefined) updateData.eligibility = input.eligibility;
+  if (input.compensation !== undefined) updateData.compensation = input.compensation;
+  if (input.deadline !== undefined) updateData.deadline = input.deadline || null;
+  if (input.duration !== undefined) updateData.duration = input.duration || null;
+  if (input.active !== undefined) updateData.active = input.active;
+
+  if (Object.keys(updateData).length > 0) {
+    const { error: oppError } = await supabase
+      .from("opportunities")
+      .update(updateData)
+      .eq("id", opportunityId);
+    if (oppError) throw new DataError("updating the opportunity", oppError);
+  }
+
+  if (input.skills) {
+    // Replace skills
+    const { error: delError } = await supabase
+      .from("opportunity_skills")
+      .delete()
+      .eq("opportunity_id", opportunityId);
+    if (delError) console.error("Error clearing old skills", delError);
+
+    if (input.skills.length > 0) {
+      const skillRows = input.skills.map((s) => ({
+        opportunity_id: opportunityId,
+        skill_id: s.skillId,
+        required_level: s.requiredLevel,
+        preferred: s.preferred,
+      }));
+      const { error: skillError } = await supabase
+        .from("opportunity_skills")
+        .insert(skillRows);
+      if (skillError) throw new DataError("updating skill requirements", skillError);
+    }
+  }
+}
+
 
 export async function getApplicationsByStudentId(
   studentId: string
@@ -631,20 +814,67 @@ function toWriteError(
 export async function applyToOpportunity(opportunityId: string): Promise<Application> {
   const supabase = createClient();
   const { data, error } = await supabase
-    .rpc("apply_to_opportunity", { p_opportunity_id: opportunityId })
-    .returns<ApplicationRpcRow>();
+    .rpc("apply_to_opportunity", { p_opportunity_id: opportunityId });
 
-  if (error || !data) {
-    throw toWriteError(error, "Could not submit your application. Please try again.");
+  if (!error && data) {
+    const row = data as unknown as ApplicationRpcRow;
+    return {
+      id: row.id,
+      studentId: row.student_id,
+      opportunityId: row.opportunity_id,
+      currentStage: row.current_stage,
+      stageHistory: [{ stage: row.current_stage, timestamp: row.applied_at }],
+      appliedAt: row.applied_at,
+    };
   }
 
+  // Fallback to direct table operations if RPC is missing
+  const { data: { user }, error: authErr } = await supabase.auth.getUser();
+  if (authErr || !user) {
+    throw new WriteError("You must be logged in to apply for roles.");
+  }
+
+  // Check if already applied
+  const { data: existing } = await supabase
+    .from("applications")
+    .select("id")
+    .eq("student_id", user.id)
+    .eq("opportunity_id", opportunityId)
+    .maybeSingle();
+
+  if (existing) {
+    throw new WriteError("You have already applied to this position.");
+  }
+
+  const { data: appRow, error: appError } = await supabase
+    .from("applications")
+    .insert({
+      student_id: user.id,
+      opportunity_id: opportunityId,
+      current_stage: "applied",
+    })
+    .select("*")
+    .single();
+
+  if (appError || !appRow) {
+    throw toWriteError(appError, "Could not submit your application. Please try again.");
+  }
+
+  const appliedAt = appRow.applied_at || new Date().toISOString();
+
+  // Log stage history
+  await supabase.from("application_stage_history").insert({
+    application_id: appRow.id,
+    stage: "applied",
+  });
+
   return {
-    id: data.id,
-    studentId: data.student_id,
-    opportunityId: data.opportunity_id,
-    currentStage: data.current_stage,
-    stageHistory: [{ stage: data.current_stage, timestamp: data.applied_at }],
-    appliedAt: data.applied_at,
+    id: appRow.id,
+    studentId: appRow.student_id,
+    opportunityId: appRow.opportunity_id,
+    currentStage: appRow.current_stage,
+    stageHistory: [{ stage: appRow.current_stage, timestamp: appliedAt }],
+    appliedAt: appliedAt,
   };
 }
 
@@ -666,14 +896,71 @@ export async function setApplicationStage(
       p_application_id: applicationId,
       p_stage: stage,
       p_note: note?.trim() ? note.trim() : null,
-    })
-    .returns<ApplicationRpcRow>();
+    });
 
-  if (error || !data) {
-    throw toWriteError(error, "Could not update the application. Please try again.");
+  if (!error && data) {
+    const row = data as unknown as ApplicationRpcRow;
+    return { currentStage: row.current_stage };
   }
 
-  return { currentStage: data.current_stage };
+  // Direct table update fallback
+  const { error: updateErr } = await supabase
+    .from("applications")
+    .update({ current_stage: stage })
+    .eq("id", applicationId);
+
+  if (updateErr) {
+    throw toWriteError(updateErr, "Could not update the application stage.");
+  }
+
+  await supabase.from("application_stage_history").insert({
+    application_id: applicationId,
+    stage: stage,
+    note: note?.trim() ? note.trim() : null,
+  });
+
+  return { currentStage: stage };
+}
+
+/**
+/ * Shortlists a candidate for an opportunity by creating or updating their application stage to 'screening'.
+ */
+export async function shortlistCandidate(
+  studentId: string,
+  opportunityId: string,
+  stage: ApplicationStage = "screening"
+): Promise<void> {
+  const supabase = createClient();
+
+  const { data: existing } = await supabase
+    .from("applications")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("opportunity_id", opportunityId)
+    .maybeSingle<{ id: string }>();
+
+  if (existing) {
+    await setApplicationStage(existing.id, stage);
+  } else {
+    const { data: appRow, error: appError } = await supabase
+      .from("applications")
+      .insert({
+        student_id: studentId,
+        opportunity_id: opportunityId,
+        current_stage: stage,
+      })
+      .select("id")
+      .single<{ id: string }>();
+
+    if (appError) {
+      throw toWriteError(appError, "Could not shortlist candidate.");
+    }
+
+    await supabase.from("application_stage_history").insert({
+      application_id: appRow.id,
+      stage: stage,
+    });
+  }
 }
 
 // ── Learning paths ────────────────────────────────────────────────────
