@@ -1,14 +1,18 @@
 "use client";
 
+import React from "react";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Search, SlidersHorizontal, ArrowUpDown, Briefcase, CheckCircle2 } from "lucide-react";
 import { useStudent } from "@/lib/student-context";
 import { DataError, getOpportunitiesWithCompany } from "@/lib/data";
 import { calculateMatchScore } from "@/lib/matching";
 import { OpportunityCard } from "@/components/opportunity-card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { SkeletonCard } from "@/components/shared";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import type { Company, MatchResult, Opportunity } from "@/lib/types";
 
 // ── Student Opportunities View ───────────────────────────────────────
@@ -19,11 +23,17 @@ interface ScoredOpportunity {
   result: MatchResult;
 }
 
+type SortOption = "match" | "newest" | "deadline" | "compensation";
+type FilterType = "all" | "internship" | "full-time" | "contract";
+
 export default function OpportunitiesPage() {
   const { student, isLoaded, applications, addApplication } = useStudent();
   const [search, setSearch] = useState("");
   const [matches, setMatches] = useState<ScoredOpportunity[]>([]);
   const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(true);
+  const [sortBy, setSortBy] = useState<SortOption>("match");
+  const [filterType, setFilterType] = useState<FilterType>("all");
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
 
   useEffect(() => {
     if (!student) return;
@@ -69,97 +79,152 @@ export default function OpportunitiesPage() {
 
   const appliedOpportunityIds = new Set(applications.map((a) => a.opportunityId));
 
-  const filtered = matches.filter(
+  // Apply filters and search
+  let filtered = matches.filter(
     (m) =>
-      m.opp.title.toLowerCase().includes(search.toLowerCase()) ||
+      (m.opp.title.toLowerCase().includes(search.toLowerCase()) ||
       m.opp.domain.toLowerCase().includes(search.toLowerCase()) ||
-      m.opp.location.toLowerCase().includes(search.toLowerCase()) ||
-      m.company?.name.toLowerCase().includes(search.toLowerCase())
+      m.company?.name.toLowerCase().includes(search.toLowerCase())) &&
+      (filterType === "all" || m.opp.type === filterType)
   );
 
+  // Apply sorting
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    switch (sortBy) {
+      case "match":
+        return b.result.overallScore - a.result.overallScore;
+      case "newest":
+        return new Date(b.opp.postedAt).getTime() - new Date(a.opp.postedAt).getTime();
+      case "deadline":
+        return new Date(a.opp.deadline).getTime() - new Date(b.opp.deadline).getTime();
+      case "compensation":
+        // Simple numeric extraction from compensation string
+        const getCompValue = (comp: string) => {
+          const match = comp.match(/\d+/);
+          return match ? parseInt(match[0]) : 0;
+        };
+        return getCompValue(b.opp.compensation) - getCompValue(a.opp.compensation);
+      default:
+        return 0;
+    }
+  });
+
+  const typeCount = {
+    all: matches.length,
+    internship: matches.filter((m) => m.opp.type === "internship").length,
+    "full-time": matches.filter((m) => m.opp.type === "full-time").length,
+    contract: matches.filter((m) => m.opp.type === "contract").length,
+  };
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Page Header */}
-      <div className="pb-4 border-b border-[#D9E1EA] space-y-1">
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide uppercase bg-[#EAF2FB] text-[#1E5AA8] border border-[#1E5AA8]/20">
-          <Briefcase className="w-3.5 h-3.5" />
-          Verified Opportunities
+    <div className="space-y-6">
+      {selectedOpportunity && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedOpportunity(null)}>
+          <Card className="max-h-[90vh] w-full max-w-2xl overflow-auto" onClick={(event: React.MouseEvent) => event.stopPropagation()}>
+            <CardContent className="space-y-4 p-6"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">{selectedOpportunity.title}</h2><p className="text-sm text-muted-foreground">{selectedOpportunity.location} · {selectedOpportunity.type}</p></div><Button variant="ghost" onClick={() => setSelectedOpportunity(null)}>Close</Button></div><p className="text-sm leading-relaxed text-muted-foreground">{selectedOpportunity.description}</p><div className="flex flex-wrap gap-2">{[...selectedOpportunity.requiredSkills, ...selectedOpportunity.preferredSkills].map((skill) => <Badge key={skill.skillId} variant={skill.preferred ? "outline" : "secondary"}>{skill.skillName} · Level {skill.requiredLevel}{skill.preferred ? " · preferred" : ""}</Badge>)}</div><Button className="w-full" disabled={appliedOpportunityIds.has(selectedOpportunity.id)} onClick={() => { void addApplication(selectedOpportunity.id); setSelectedOpportunity(null); }}>{appliedOpportunityIds.has(selectedOpportunity.id) ? "Already applied" : "Apply now"}</Button></CardContent>
+          </Card>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#123B6D] tracking-tight">
-          Career Opportunities
-        </h1>
-        <p className="text-xs sm:text-sm text-[#5B6575] font-medium">
-          Discover high-fit internships, apprenticeships, and full-time roles matched to your verified skills.
-        </p>
+      )}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+        <h1 className="text-3xl font-bold tracking-tight">Opportunities</h1>
+        <p className="text-muted-foreground mt-1">Discover roles matched to your verified skills.</p>
+      </motion.div>
+
+      {/* Search and Filters */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <Input
+              placeholder="Search roles, domains, companies, or skills..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </div>
+
+        {/* Filter Badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-muted-foreground">Filter:</span>
+          <Badge
+            variant={filterType === "all" ? "default" : "outline"}
+            className="cursor-pointer"
+            onClick={() => setFilterType("all")}
+          >
+            All ({typeCount.all})
+          </Badge>
+          <Badge
+            variant={filterType === "internship" ? "default" : "outline"}
+            className="cursor-pointer"
+            onClick={() => setFilterType("internship")}
+          >
+            Internships ({typeCount.internship})
+          </Badge>
+          <Badge
+            variant={filterType === "full-time" ? "default" : "outline"}
+            className="cursor-pointer"
+            onClick={() => setFilterType("full-time")}
+          >
+            Full-Time ({typeCount["full-time"]})
+          </Badge>
+          <Badge
+            variant={filterType === "contract" ? "default" : "outline"}
+            className="cursor-pointer"
+            onClick={() => setFilterType("contract")}
+          >
+            Contract ({typeCount.contract})
+          </Badge>
+
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="text-sm border border-border rounded-md px-3 py-1.5 bg-background hover:bg-accent cursor-pointer transition-colors"
+            >
+              <option value="match">Best Match</option>
+              <option value="newest">Newest First</option>
+              <option value="deadline">Deadline Soon</option>
+              <option value="compensation">Highest Pay</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-[#64748B] absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search roles, domains, skills, or organizations..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#CBD5E1] rounded-xl text-xs sm:text-sm text-[#172033] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#1E5AA8] focus:ring-2 focus:ring-[#1E5AA8]/20 transition-all"
-          />
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className="px-4 py-2.5 bg-white border border-[#CBD5E1] rounded-xl text-xs font-bold text-[#123B6D] hover:bg-[#F8FAFC] flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-[#1E5AA8]" />
-            <span>Filters</span>
-          </button>
-          <button
-            type="button"
-            className="px-4 py-2.5 bg-white border border-[#CBD5E1] rounded-xl text-xs font-bold text-[#123B6D] hover:bg-[#F8FAFC] flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <ArrowUpDown className="w-3.5 h-3.5 text-[#1E5AA8]" />
-            <span>Sort: Match Score</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Grid of Opportunities */}
       {isLoadingOpportunities ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="card-grid card-grid-3">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map(({ opp, company, result }, index) => {
-            const hasApplied = appliedOpportunityIds.has(opp.id);
-            return (
-              <OpportunityCard
-                key={opp.id}
-                index={index}
-                opportunity={opp}
-                company={company}
-                matchResult={result}
-                onViewDetails={() => {}}
-                onApply={
-                  hasApplied
-                    ? undefined
-                    : () => {
-                        void addApplication(opp.id);
-                        toast.success(`Application submitted for ${opp.title}!`);
-                      }
-                }
-              />
-            );
-          })}
+        <div className="card-grid card-grid-3">
+          {sortedFiltered.map(({ opp, company, result }, index) => (
+            <OpportunityCard
+              key={opp.id}
+              index={index}
+              opportunity={opp}
+              company={company}
+              matchResult={result}
+              onViewDetails={() => setSelectedOpportunity(opp)}
+              onApply={
+                appliedOpportunityIds.has(opp.id)
+                  ? undefined
+                  : () => void addApplication(opp.id)
+              }
+            />
+          ))}
         </div>
       )}
 
-      {!isLoadingOpportunities && filtered.length === 0 && (
-        <div className="py-16 text-center bg-white rounded-2xl border border-[#D9E1EA] text-[#5B6575] space-y-2">
-          <p className="font-bold text-sm text-[#123B6D]">No opportunities match your current filters</p>
-          <p className="text-xs">Try adjusting your search criteria or check back soon for newly posted roles.</p>
+      {!isLoadingOpportunities && sortedFiltered.length === 0 && (
+        <div className="py-12 text-center text-muted-foreground">
+          {matches.length === 0
+            ? "No opportunities have been posted yet. Check back soon."
+            : "No opportunities found matching your filters."}
         </div>
       )}
     </div>

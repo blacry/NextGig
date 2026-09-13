@@ -10,10 +10,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Vridhi | National Skill & Career Growth Portal",
+  title: "NextGig — Skill Intelligence Platform",
   description:
-    "Vridhi (वृद्धि) connects learners, institutions and industry through intelligent skill assessment, verified capabilities, learning pathways, internships and employment opportunities. Where Skills Grow. Opportunities Multiply.",
-  keywords: ["Vridhi", "skills", "AI assessment", "internships", "career opportunities", "Ministry of Education", "Government of India", "SIH 2026"],
+    "AI-powered academia-industry skill matching platform. Bridge the gap between education and employment with intelligent skill assessment, gap analysis, and opportunity matching.",
+  keywords: ["placement", "skills", "AI", "assessment", "career", "SIH 2026"],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -24,10 +24,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
-      <body
-        className="min-h-full flex flex-col bg-background text-foreground"
-        suppressHydrationWarning
-      >
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         <Providers>{children}</Providers>
       </body>
     </html>

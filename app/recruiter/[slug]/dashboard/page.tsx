@@ -1,45 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRecruiter } from "@/lib/recruiter-context";
+import { useRole } from "@/lib/role-context";
 import { rankCandidatesForOpportunity } from "@/lib/matching";
+import { OpportunityForm } from "@/components/opportunity-form";
+import { StatCard } from "@/components/stat-card";
 import { MatchScore } from "@/components/match-score";
-import { Card, CardContent } from "@/components/ui/card";
+import { SkillMeter } from "@/components/skill-meter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HeatmapPreview } from "@/components/heatmap-preview";
 import { SkeletonCard } from "@/components/shared";
-import {
-  Briefcase,
-  Users,
-  FileCheck,
-  TrendingUp,
-  Sparkles,
-  Plus,
-  ArrowRight,
-  ShieldCheck,
-  Layers,
-  GraduationCap,
-  Award,
-  Search,
-  CheckCircle2,
-  ExternalLink,
-  Target,
-  BarChart3,
-  Network,
-  HelpCircle,
-} from "lucide-react";
-import { toast } from "sonner";
+import type { Student } from "@/lib/types";
 
-// ── Vridhi Recruiter Dashboard ───────────────────────────────────────
+// ── Recruiter Dashboard ──────────────────────────────────────────────
 
 export default function RecruiterDashboardPage() {
-  const { recruiter, company, opportunities, candidates, isLoaded } = useRecruiter();
-  const [showPostModal, setShowPostModal] = useState(false);
+  const { recruiter, company, opportunities, candidates, applications, isLoaded, refresh } = useRecruiter();
+  const { userId, userSlug } = useRole();
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
-  // Pipeline for the recruiter's most recent posting
+  // Drawer & Contact Modal state
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [contactStudent, setContactStudent] = useState<Student | null>(null);
+
+  // Pipeline for the recruiter's most recent posting.
   const featured = opportunities[0];
 
   const ranked = useMemo(
@@ -107,171 +96,71 @@ export default function RecruiterDashboardPage() {
 
   const activeRoles = opportunities.filter((o) => o.active).length;
 
-  const handleQuickAction = (action: string) => {
-    toast.info(`${action} feature is ready for exploration.`);
-  };
-
   return (
-    <div className="space-y-8 max-w-[1360px] mx-auto">
-      
-      {/* ──────────────────────────────────────────────────────────
-          1. DASHBOARD HEADER & ACTION BAR
-          ────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[#E2E8F0] pb-6">
-        <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#1E5AA8]/25 bg-[#1E5AA8]/8 px-3.5 py-1 text-xs font-bold text-[#123B6D]">
-            <span className="w-2 h-2 rounded-full bg-[#138808]" />
-            <span>VRIDHI INDUSTRY PORTAL</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#123B6D] tracking-tight">
-            Recruiter Dashboard
-          </h1>
-          <p className="text-xs sm:text-sm text-[#5B6575]">
+    <div className="space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+      >
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
             {company
-              ? `Discover verified talent, manage opportunities and build high-quality teams for ${company.name} through Vridhi.`
-              : "Discover verified talent, manage opportunities and build high-quality teams through Vridhi."}
+              ? `Overview of ${company.name}'s active pipelines and talent matches.`
+              : "Overview of your active pipelines and talent matches."}
           </p>
         </div>
+        <Button
+          onClick={() => setIsFormOpen(true)}
+          className="bg-[var(--ng-primary)] hover:bg-[var(--ng-primary-dark)] text-white shadow-lg shadow-[var(--ng-primary)]/20 font-medium px-5 h-10 gap-2 shrink-0 self-start sm:self-auto"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Post Opportunity
+        </Button>
+      </motion.div>
 
-        <div className="flex items-center gap-3">
-          <Link
-            href="/opportunities"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1E5AA8] hover:bg-[#123B6D] text-white font-bold text-xs shadow-md hover:shadow-lg transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Post an Opportunity</span>
-          </Link>
-        </div>
+      {/* Top Stats */}
+      <div className="card-grid card-grid-3 lg:grid-cols-4">
+        <StatCard index={0} title="Active Roles" value={activeRoles} description={`${opportunities.length} posted in total`} />
+        <StatCard index={1} title="Total Candidates" value={candidates.length} description="Onboarded and searchable" />
+        <StatCard index={2} title="Applications" value={applications.length} description="Across your open roles" />
+        <StatCard index={3} title="High Match Rate" value={highMatchRate} suffix="%" description="Candidates > 80% match" />
       </div>
 
-      {/* ──────────────────────────────────────────────────────────
-          2. KPI STAT METRIC CARDS (4-Column Grid)
-          ────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        
-        {/* Card 1: Active Roles */}
-        <Card className="bg-white border-2 border-[#D9E1EA] rounded-2xl shadow-xs hover:border-[#1E5AA8]/50 transition-all">
-          <CardContent className="p-5 sm:p-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#5B6575] uppercase tracking-wider">
-                Active Roles
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-[#EBF3FC] text-[#1E5AA8] flex items-center justify-center">
-                <Briefcase className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-3xl font-black text-[#123B6D] tracking-tight">
-              {activeRoles}
-            </div>
-            <p className="text-[11.5px] text-[#5B6575] font-medium">
-              {opportunities.length} posted in total
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 2: Total Candidates */}
-        <Card className="bg-white border-2 border-[#D9E1EA] rounded-2xl shadow-xs hover:border-[#1E5AA8]/50 transition-all">
-          <CardContent className="p-5 sm:p-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#5B6575] uppercase tracking-wider">
-                Total Candidates
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-[#EBF3FC] text-[#1E5AA8] flex items-center justify-center">
-                <Users className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-3xl font-black text-[#123B6D] tracking-tight">
-              {candidates.length}
-            </div>
-            <p className="text-[11.5px] text-[#5B6575] font-medium">
-              Onboarded and searchable
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Applications */}
-        <Card className="bg-white border-2 border-[#D9E1EA] rounded-2xl shadow-xs hover:border-[#1E5AA8]/50 transition-all">
-          <CardContent className="p-5 sm:p-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#5B6575] uppercase tracking-wider">
-                Applications
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-[#EBF3FC] text-[#1E5AA8] flex items-center justify-center">
-                <FileCheck className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-3xl font-black text-[#123B6D] tracking-tight">
-              0
-            </div>
-            <p className="text-[11.5px] text-[#5B6575] font-medium">
-              Across your open roles
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 4: High Match Rate */}
-        <Card className="bg-white border-2 border-[#D9E1EA] rounded-2xl shadow-xs hover:border-[#1E5AA8]/50 transition-all">
-          <CardContent className="p-5 sm:p-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#5B6575] uppercase tracking-wider">
-                High Match Rate
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-[#138808]/10 text-[#138808] flex items-center justify-center">
-                <TrendingUp className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-3xl font-black text-[#123B6D] tracking-tight">
-              {highMatchRate}%
-            </div>
-            <p className="text-[11.5px] text-[#138808] font-bold flex items-center gap-1">
-              <span>Candidates &gt; 80% match</span>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ──────────────────────────────────────────────────────────
-          3. MAIN TWO-COLUMN WORKSPACE: PIPELINE & INSIGHTS
-          ────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
-        
-        {/* Left Column (8 cols): Top Candidates Pipeline */}
-        <div className="xl:col-span-8 space-y-6">
-          <Card className="bg-white border-2 border-[#D9E1EA] rounded-2xl shadow-xs overflow-hidden">
-            <div className="p-5 sm:p-6 border-b border-[#E2E8F0] flex flex-wrap items-center justify-between gap-3 bg-[#FAFBFD]">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Left: Top Pipeline */}
+        <div className="xl:col-span-2 space-y-6">
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <div>
-                <h2 className="text-base font-bold text-[#123B6D]">
-                  Top Candidates Pipeline
-                </h2>
-                <p className="text-xs text-[#5B6575] mt-0.5">
-                  {featured
-                    ? `Candidates ranked by verified skills and compatibility for: ${featured.title}`
-                    : "Candidates ranked by verified skills and role compatibility."}
+                <CardTitle>Top Candidates Pipeline</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {featured ? `For ${featured.title}` : "No open roles yet"}
                 </p>
               </div>
-
-              <Link
-                href="/students"
-                className="text-xs font-bold px-3.5 py-1.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#EBF3FC] hover:border-[#1E5AA8] text-[#123B6D] transition-all"
-              >
-                View All Talent →
+              <Link href={`/recruiter/${userSlug}/talent`}>
+                <Button size="sm" variant="outline">View All</Button>
               </Link>
-            </div>
-
+            </CardHeader>
             <CardContent className="p-0">
               {ranked.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="bg-[#F1F5F9] border-b border-[#E2E8F0] text-[11px] uppercase font-bold text-[#5B6575]">
+                  <table className="w-full data-table">
+                    <thead className="bg-muted/50 border-y border-border text-xs uppercase text-muted-foreground">
                       <tr>
-                        <th className="py-3 px-4">Candidate</th>
-                        <th className="py-3 px-4">Match Score</th>
-                        <th className="py-3 px-4">Verified Skills</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4 text-right">Action</th>
+                        <th className="text-left font-medium">Candidate</th>
+                        <th className="text-left font-medium">Match Score</th>
+                        <th className="text-left font-medium">Verified Skills</th>
+                        <th className="text-left font-medium">Status</th>
+                        <th className="text-right font-medium">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#E2E8F0] text-xs">
+                    <tbody className="divide-y divide-border">
                       {ranked.map((result, i) => {
                         const student = candidatesById.get(result.studentId);
                         if (!student) return null;
@@ -283,37 +172,39 @@ export default function RecruiterDashboardPage() {
                         return (
                           <motion.tr
                             key={student.id}
-                            initial={{ opacity: 0, y: 8 }}
+                            initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.04 }}
-                            className="hover:bg-[#FAFBFD] transition-colors group"
+                            transition={{ delay: i * 0.05 }}
+                            className="hover:bg-muted/30 transition-colors group cursor-pointer"
+                            onClick={() => setSelectedStudent(student)}
                           >
-                            <td className="py-3.5 px-4">
-                              <div className="font-bold text-[#123B6D] text-sm">{student.name}</div>
-                              <div className="text-[11px] text-[#5B6575] font-medium">{student.education.institution}</div>
+                            <td>
+                              <div className="font-medium text-sm text-foreground hover:text-[var(--ng-primary)] transition-colors">
+                                {student.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground">{student.education.institution || "Student"}</div>
                             </td>
-                            <td className="py-3.5 px-4 w-44">
+                            <td className="w-48">
                               <MatchScore score={result.overallScore} size="sm" showBreakdown={false} />
                             </td>
-                            <td className="py-3.5 px-4">
-                              <Badge className="bg-[#138808]/10 text-[#138808] border border-[#138808]/20 font-bold text-[10.5px]">
-                                {verified} Verified Badges
-                              </Badge>
+                            <td>
+                              <Badge variant="secondary" className="font-normal text-xs">{verified} verified</Badge>
                             </td>
-                            <td className="py-3.5 px-4">
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#1E5AA8] bg-[#EBF3FC] px-2.5 py-0.5 rounded-full">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#1E5AA8]" />
-                                Qualified
-                              </span>
+                            <td>
+                              <span className="text-xs text-muted-foreground">New Match</span>
                             </td>
-                            <td className="py-3.5 px-4 text-right">
-                              <Link
-                                href={`/students`}
-                                className="inline-flex items-center gap-1 text-xs font-bold text-[#1E5AA8] hover:text-[#123B6D] hover:underline"
+                            <td className="text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedStudent(student);
+                                }}
+                                className="h-8 text-xs font-medium border-border hover:border-foreground"
                               >
-                                <span>Profile</span>
-                                <ArrowRight className="w-3.5 h-3.5" />
-                              </Link>
+                                View Profile
+                              </Button>
                             </td>
                           </motion.tr>
                         );
@@ -322,171 +213,281 @@ export default function RecruiterDashboardPage() {
                   </table>
                 </div>
               ) : (
-                <div className="p-10 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-[#EBF3FC] text-[#1E5AA8] flex items-center justify-center mx-auto">
-                    <Target className="w-6 h-6 text-[#1E5AA8]" />
-                  </div>
-                  <h3 className="text-sm font-bold text-[#123B6D]">
-                    {!featured ? "No open roles yet" : "No onboarded candidates to rank yet."}
-                  </h3>
-                  <p className="text-xs text-[#5B6575] max-w-sm mx-auto">
-                    {!featured
-                      ? "Post an opportunity to start receiving AI-verified candidates matching your skill requirements."
-                      : "Check back as learners complete skill assessments across national universities."}
-                  </p>
-                  <Link
-                    href="/opportunities"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1E5AA8] text-white font-bold text-xs hover:bg-[#123B6D] transition shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Post an Opportunity</span>
-                  </Link>
+                <div className="p-6 text-center text-muted-foreground text-sm">
+                  {!featured
+                    ? "Post an opportunity to start matching candidates."
+                    : "No onboarded candidates to rank yet."}
                 </div>
               )}
             </CardContent>
           </Card>
-
-          {/* Quick Actions Panel */}
-          <Card className="bg-white border-2 border-[#D9E1EA] rounded-2xl shadow-xs">
-            <CardContent className="p-6 space-y-4">
-              <h2 className="text-sm font-bold text-[#123B6D] flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#1E5AA8]" /> Quick Actions
-              </h2>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Link
-                  href="/opportunities"
-                  className="p-3.5 rounded-xl border-2 border-[#CBD5E1] bg-[#F8FAFC] hover:border-[#1E5AA8] hover:bg-[#EBF3FC] text-center transition-all group"
-                >
-                  <Briefcase className="w-5 h-5 mx-auto mb-1.5 text-[#1E5AA8] group-hover:scale-110 transition-transform" />
-                  <div className="font-bold text-xs text-[#123B6D]">Post Opportunity</div>
-                  <div className="text-[10px] text-[#5B6575]">New Listing</div>
-                </Link>
-
-                <Link
-                  href="/students"
-                  className="p-3.5 rounded-xl border-2 border-[#CBD5E1] bg-[#F8FAFC] hover:border-[#1E5AA8] hover:bg-[#EBF3FC] text-center transition-all group"
-                >
-                  <Search className="w-5 h-5 mx-auto mb-1.5 text-[#1E5AA8] group-hover:scale-110 transition-transform" />
-                  <div className="font-bold text-xs text-[#123B6D]">Search Talent</div>
-                  <div className="text-[10px] text-[#5B6575]">Browse Candidates</div>
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickAction("Review Applications")}
-                  className="p-3.5 rounded-xl border-2 border-[#CBD5E1] bg-[#F8FAFC] hover:border-[#1E5AA8] hover:bg-[#EBF3FC] text-center transition-all group cursor-pointer"
-                >
-                  <FileCheck className="w-5 h-5 mx-auto mb-1.5 text-[#1E5AA8] group-hover:scale-110 transition-transform" />
-                  <div className="font-bold text-xs text-[#123B6D]">Applications</div>
-                  <div className="text-[10px] text-[#5B6575]">Active Pipeline</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickAction("View Analytics")}
-                  className="p-3.5 rounded-xl border-2 border-[#CBD5E1] bg-[#F8FAFC] hover:border-[#1E5AA8] hover:bg-[#EBF3FC] text-center transition-all group cursor-pointer"
-                >
-                  <BarChart3 className="w-5 h-5 mx-auto mb-1.5 text-[#1E5AA8] group-hover:scale-110 transition-transform" />
-                  <div className="font-bold text-xs text-[#123B6D]">Analytics</div>
-                  <div className="text-[10px] text-[#5B6575]">Supply Trends</div>
-                </button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Right Column (4 cols): AI Insight & Skill Supply Heatmap */}
-        <div className="xl:col-span-4 space-y-6">
-          
-          {/* AI Sourcing Insight Card */}
-          <Card className="bg-[#FAFBFD] border-2 border-[#1E5AA8]/30 rounded-2xl shadow-xs overflow-hidden">
-            <div className="h-1 bg-linear-to-r from-[#1E5AA8] to-amber-400" />
-            <CardContent className="p-6 space-y-4">
-              <div className="flex items-center gap-2 text-[#123B6D]">
-                <div className="w-7 h-7 rounded-lg bg-[#EBF3FC] text-[#1E5AA8] flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                </div>
-                <h3 className="font-bold text-sm text-[#123B6D]">AI Sourcing Insight</h3>
-              </div>
-
-              <p className="text-xs text-[#334155] leading-relaxed font-medium">
+        {/* Right: Insights */}
+        <div className="space-y-6">
+          <Card className="ai-surface border-[var(--ng-primary)]/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--ng-primary)" stroke="none"><path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z"/></svg>
+                AI Sourcing Insight
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-4">
                 {heatmapData.length > 0 && heatmapData[0].value < 50 ? (
                   <>
-                    <strong className="text-[#123B6D]">{heatmapData[0].skillName}</strong> is currently your scarcest requirement — only {heatmapData[0].value}% of the talent pool meets it. Relaxing that level, or marking it as preferred, widens your pool significantly.
+                    <strong className="text-foreground">{heatmapData[0].skillName}</strong> is your
+                    scarcest requirement — only {heatmapData[0].value}% of the talent pool meets it.
+                    Relaxing that level, or treating it as preferred, widens your pool the most.
                   </>
                 ) : (
                   <>
-                    Your current role requirements are well covered by the verified talent pool. Adding a specialized stretch capability helps differentiate top-tier candidates.
+                    Your current requirements are well covered by the talent pool. Adding a
+                    stretch skill would help you differentiate stronger candidates.
                   </>
                 )}
               </p>
-
-              <Link
-                href="/opportunities"
-                className="w-full h-9 rounded-xl bg-[#1E5AA8] hover:bg-[#123B6D] text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <span>Adjust Requirements</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+              <Button size="sm" variant="secondary" className="w-full" disabled={!featured}>
+                Adjust Requirements
+              </Button>
             </CardContent>
           </Card>
 
-          {/* Skill Supply vs Demand Card */}
-          <Card className="bg-white border-2 border-[#D9E1EA] rounded-2xl shadow-xs">
-            <CardContent className="p-6 space-y-3.5">
-              <div className="border-b border-[#E2E8F0] pb-3">
-                <h3 className="font-bold text-sm text-[#123B6D]">Skill Supply vs Demand</h3>
-                <p className="text-[11px] text-[#5B6575] mt-0.5 font-medium">
-                  Share of the talent pool meeting your required levels
-                </p>
-              </div>
-
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Skill Supply vs Demand</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Share of the talent pool meeting your required levels
+              </p>
+            </CardHeader>
+            <CardContent>
               {heatmapData.length > 0 ? (
-                <div className="pt-1">
-                  <HeatmapPreview data={heatmapData} maxCols={4} />
-                </div>
+                <HeatmapPreview data={heatmapData} maxCols={4} />
               ) : (
-                <div className="p-6 text-center space-y-1 text-xs text-[#5B6575]">
-                  <p className="font-medium">
-                    {recruiter ? "Post an opportunity to see supply signals." : "No data yet."}
-                  </p>
-                </div>
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  {recruiter
+                    ? "Post an opportunity to see supply signals."
+                    : "No data yet."}
+                </p>
               )}
             </CardContent>
           </Card>
-
-          {/* Talent Matching Pipeline Architecture Visual */}
-          <Card className="bg-linear-to-br from-[#123B6D] to-[#1E5AA8] text-white border-0 rounded-2xl shadow-md p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[10.5px] font-bold text-amber-300 uppercase tracking-wider">
-                Vridhi Verification Flow
-              </span>
-              <ShieldCheck className="w-4 h-4 text-emerald-300" />
-            </div>
-
-            <div className="space-y-2 text-xs font-semibold text-white">
-              <div className="p-2 rounded-lg bg-white/10 border border-white/15 flex items-center justify-between">
-                <span>1. Industry Posting</span>
-                <span className="text-[10px] text-blue-200">Requirements</span>
-              </div>
-              <div className="p-2 rounded-lg bg-white/10 border border-white/15 flex items-center justify-between">
-                <span>2. AI Verified Skills</span>
-                <span className="text-[10px] text-emerald-300">National Badges</span>
-              </div>
-              <div className="p-2 rounded-lg bg-white/10 border border-white/15 flex items-center justify-between">
-                <span>3. Ranked Pipeline</span>
-                <span className="text-[10px] text-amber-300">Match Score</span>
-              </div>
-            </div>
-
-            <div className="pt-1 text-[10.5px] text-blue-100/90 text-center font-medium">
-              Transparent, merit-based competency hiring
-            </div>
-          </Card>
-
         </div>
       </div>
+
+      {/* Candidate Profile Slide-over Drawer */}
+      <AnimatePresence>
+        {selectedStudent && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+              onClick={() => setSelectedStudent(null)}
+            />
+
+            <motion.aside
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-xl bg-card border-l border-border z-50 overflow-y-auto flex flex-col shadow-2xl"
+            >
+              <div className="p-6 border-b border-border flex items-start justify-between bg-muted/20 sticky top-0 backdrop-blur-md z-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-[var(--ng-primary)]/20 text-[var(--ng-primary)] font-bold flex items-center justify-center text-lg border border-[var(--ng-primary)]/40">
+                    {selectedStudent.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">{selectedStudent.name}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedStudent.education.degree || "Student"} · {selectedStudent.education.institution || "University"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{selectedStudent.email}</p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedStudent(null)}
+                  className="w-8 h-8 p-0 rounded-full"
+                >
+                  ✕
+                </Button>
+              </div>
+
+              <div className="p-6 space-y-6 flex-1">
+                {selectedStudent.bio && (
+                  <div className="p-4 rounded-xl bg-muted/40 border border-border/60">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      About
+                    </h4>
+                    <p className="text-sm text-foreground/90 leading-relaxed">{selectedStudent.bio}</p>
+                  </div>
+                )}
+
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                    Education
+                  </h4>
+                  <div className="p-4 rounded-xl border border-border bg-card space-y-1">
+                    <p className="font-semibold text-sm">
+                      {selectedStudent.education.institution || "Not specified"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedStudent.education.degree} in {selectedStudent.education.field}
+                    </p>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t border-border/50 mt-2">
+                      {selectedStudent.education.year && <span>Graduation: {selectedStudent.education.year}</span>}
+                      {selectedStudent.education.gpa && (
+                        <span className="font-medium text-emerald-400">GPA: {selectedStudent.education.gpa}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Verified Skills ({selectedStudent.skills.length})
+                    </h4>
+                  </div>
+                  <div className="space-y-3">
+                    {selectedStudent.skills.map((skill) => (
+                      <SkillMeter
+                        key={skill.id}
+                        skillName={skill.name}
+                        currentLevel={skill.level}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {selectedStudent.projects.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                      Projects ({selectedStudent.projects.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {selectedStudent.projects.map((project) => (
+                        <div key={project.id} className="p-4 rounded-xl border border-border bg-card space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-semibold text-sm">{project.title}</h5>
+                            {project.url && (
+                              <a
+                                href={project.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs text-[var(--ng-primary)] hover:underline flex items-center gap-1"
+                              >
+                                View Project ↗
+                              </a>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground leading-relaxed">{project.description}</p>
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {project.techStack.map((tech) => (
+                              <Badge key={tech} variant="outline" className="text-[10px] py-0 px-2">
+                                {tech}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-end gap-3">
+                <Button
+                  onClick={() => {
+                    const student = selectedStudent;
+                    setSelectedStudent(null);
+                    setContactStudent(student);
+                  }}
+                  className="bg-[var(--ng-primary)] text-white hover:bg-[var(--ng-primary-dark)]"
+                >
+                  Contact Candidate
+                </Button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Direct Contact Modal */}
+      <AnimatePresence>
+        {contactStudent && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setContactStudent(null)}
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-card border border-border rounded-xl p-6 max-w-md w-full z-10 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-lg">Contact {contactStudent.name}</h3>
+                <Button variant="ghost" size="sm" onClick={() => setContactStudent(null)} className="h-8 w-8 p-0">
+                  ✕
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Reach out directly via email to schedule an interview or discuss an opportunity.
+              </p>
+              <div className="p-3 rounded-lg bg-muted/40 border border-border text-xs space-y-1">
+                <div>
+                  <span className="text-muted-foreground">Email: </span>
+                  <span className="font-mono text-foreground">{contactStudent.email}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Recruiter: </span>
+                  <span>{recruiter?.name || "NextGig Recruiter"}</span>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setContactStudent(null)}>
+                  Cancel
+                </Button>
+                <a href={`mailto:${contactStudent.email}?subject=Opportunity%20Discussion%20via%20NextGig`}>
+                  <Button className="bg-[var(--ng-primary)] text-white hover:bg-[var(--ng-primary-dark)]">
+                    Send Email ✉️
+                  </Button>
+                </a>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Slide-over Drawer Form */}
+      {(recruiter || userId) && (
+        <OpportunityForm
+          open={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+          recruiterId={recruiter?.id || userId || ""}
+          companyId={company?.id || recruiter?.companyId || ""}
+          onSuccess={() => {
+            refresh();
+            setIsFormOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
+

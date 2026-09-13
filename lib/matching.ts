@@ -60,13 +60,19 @@ export function calculateMatchScore(
 ): MatchResult {
   const breakdown = calculateBreakdown(student, opportunity);
 
-  // Weighted combination
-  const overallScore = Math.round(
+  // A candidate who meets every listed skill requirement is a complete
+  // compatibility match. Verification, education, and experience remain in
+  // the breakdown for recruiter context, but must not lower the headline
+  // compatibility score for an exact skills match.
+  const hasRequirements = breakdown.skillDetails.length > 0;
+  const meetsEverySkill = hasRequirements && breakdown.skillDetails.every((detail) => detail.met);
+  const weightedScore = Math.round(
     breakdown.skillMatch * 0.6 +
     breakdown.educationMatch * 0.15 +
     breakdown.experienceMatch * 0.1 +
     breakdown.verificationBonus * 0.15
   );
+  const overallScore = meetsEverySkill ? 100 : weightedScore;
 
   return {
     studentId: student.id,
@@ -128,12 +134,14 @@ function calculateBreakdown(
   });
 
   const skillMatch = totalWeight > 0
-    ? Math.round((skillScore / totalWeight) * 100)
+    ? skillDetails.every((detail) => detail.met)
+      ? 100
+      : Math.round((skillScore / totalWeight) * 100)
     : 0;
 
   // ── 2. Education Match (15% weight) ──
-  const fieldKey = student.education?.field ?? "";
-  const relevantDomains = DOMAIN_RELEVANCE[fieldKey] || [];
+  const field = student.education.field;
+  const relevantDomains = field ? (DOMAIN_RELEVANCE[field] || []) : [];
   const educationMatch = relevantDomains.includes(opportunity.domain)
     ? Math.min(100, 60 + (student.education.gpa || 7) * 5)
     : 30; // Base score for non-relevant degrees

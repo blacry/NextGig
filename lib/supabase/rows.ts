@@ -143,9 +143,3 @@ export type ApplicationRow = Pick<
     "stage" | "occurred_at" | "note"
   >[];
 };
-
-export type ApplicationRpcRow = Pick<
-  Tables<"applications">,
-  "id" | "student_id" | "opportunity_id" | "current_stage" | "applied_at"
->;
-

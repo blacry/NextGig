@@ -53,142 +53,116 @@ async function chatComplete(
 
 function parseJSON<T>(raw: string, fallback: T): T {
   try {
-  
-    let cleaned = raw.trim();
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.slice(7);
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.slice(3);
+    if (!raw || typeof raw !== "string") {
+      return fallback;
     }
-    if (cleaned.endsWith("```")) {
-      cleaned = cleaned.slice(0, -3);
-    }
-    cleaned = cleaned.trim();
 
-    const parsed: unknown = JSON.parse(cleaned);
-    // Some compatible AI endpoints serialize the JSON object as a JSON string.
-    return (typeof parsed === "string" ? JSON.parse(parsed) : parsed) as T;
-  } catch {
-    console.error("[AI] Failed to parse JSON response:", raw.slice(0, 200));
+    let cleaned = raw.trim();
+
+    // Remove markdown code fences.
+    cleaned = cleaned
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+
+    // First attempt: response is already pure JSON.
+    try {
+      const parsed: unknown = JSON.parse(cleaned);
+
+      // Some providers return JSON encoded as a string.
+      if (typeof parsed === "string") {
+        return JSON.parse(parsed) as T;
+      }
+
+      return parsed as T;
+    } catch {
+      // Continue with extraction below.
+    }
+
+    // Find the beginning of a JSON object or array.
+    const firstArray = cleaned.indexOf("[");
+    const firstObject = cleaned.indexOf("{");
+
+    let start = -1;
+
+    if (firstArray === -1) {
+      start = firstObject;
+    } else if (firstObject === -1) {
+      start = firstArray;
+    } else {
+      start = Math.min(firstArray, firstObject);
+    }
+
+    if (start === -1) {
+      throw new Error("No JSON object or array found.");
+    }
+
+    // Find the matching closing bracket while respecting strings.
+    const opening = cleaned[start];
+    const closing = opening === "[" ? "]" : "}";
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = -1;
+
+    for (let i = start; i < cleaned.length; i++) {
+      const char = cleaned[i];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\" && inString) {
+        escaped = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) {
+        continue;
+      }
+
+      if (char === opening) {
+        depth++;
+      } else if (char === closing) {
+        depth--;
+
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+
+    if (end === -1) {
+      throw new Error("Incomplete JSON response.");
+    }
+
+    const extracted = cleaned.slice(start, end + 1);
+    const parsed: unknown = JSON.parse(extracted);
+
+    if (typeof parsed === "string") {
+      return JSON.parse(parsed) as T;
+    }
+
+    return parsed as T;
+  } catch (error) {
+    console.error(
+      "[AI] Failed to parse JSON response:",
+      error instanceof Error ? error.message : error
+    );
+
+    console.error("[AI] Raw response preview:", raw.slice(0, 1000));
+
     return fallback;
   }
-}
-
-// Built-in heuristic skill database for fallback parsing
-const KNOWN_SKILL_PATTERNS = [
-  { id: "react", name: "React", domain: "frontend", pattern: /\b(react|react\.js|reactjs)\b/i },
-  { id: "nextjs", name: "Next.js", domain: "frontend", pattern: /\b(next\.js|nextjs)\b/i },
-  { id: "typescript", name: "TypeScript", domain: "frontend", pattern: /\b(typescript|ts)\b/i },
-  { id: "javascript", name: "JavaScript", domain: "frontend", pattern: /\b(javascript|js|es6)\b/i },
-  { id: "tailwind-css", name: "Tailwind CSS", domain: "frontend", pattern: /\b(tailwind|tailwind\s*css)\b/i },
-  { id: "html-css", name: "HTML/CSS", domain: "frontend", pattern: /\b(html|html5|css|css3)\b/i },
-  { id: "vue", name: "Vue.js", domain: "frontend", pattern: /\b(vue|vue\.js|vuejs)\b/i },
-  { id: "angular", name: "Angular", domain: "frontend", pattern: /\b(angular)\b/i },
-  { id: "node-js", name: "Node.js", domain: "backend", pattern: /\b(node|node\.js|nodejs|express|express\.js)\b/i },
-  { id: "python", name: "Python", domain: "backend", pattern: /\b(python|django|flask|fastapi)\b/i },
-  { id: "java", name: "Java", domain: "backend", pattern: /\b(java|spring|spring\s*boot)\b/i },
-  { id: "cpp", name: "C++", domain: "backend", pattern: /\b(c\+\+|cpp)\b/i },
-  { id: "sql", name: "SQL", domain: "backend", pattern: /\b(sql|mysql|postgresql|postgres|sqlite)\b/i },
-  { id: "mongodb", name: "MongoDB", domain: "backend", pattern: /\b(mongodb|mongo|nosql)\b/i },
-  { id: "git", name: "Git & Version Control", domain: "devops", pattern: /\b(git|github|gitlab)\b/i },
-  { id: "docker", name: "Docker", domain: "devops", pattern: /\b(docker|containers|kubernetes)\b/i },
-  { id: "aws", name: "AWS Cloud", domain: "cloud", pattern: /\b(aws|amazon\s*web\s*services|ec2|s3)\b/i },
-  { id: "machine-learning", name: "Machine Learning", domain: "data-ai", pattern: /\b(machine\s*learning|ml|scikit-learn|tensorflow|pytorch)\b/i },
-  { id: "data-structures", name: "Data Structures & Algorithms", domain: "general", pattern: /\b(data\s*structures|algorithms|dsa|leetcode)\b/i },
-  { id: "rest-apis", name: "REST APIs", domain: "backend", pattern: /\b(rest|restful|api|apis)\b/i },
-];
-
-function fallbackResumeExtract(text: string, sources?: { githubUrl?: string; linkedinUrl?: string }) {
-  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-  
-  // Extract name (usually first non-empty line or from "Name:" prefix)
-  let name = "Learner Candidate";
-  for (const line of lines.slice(0, 5)) {
-    if (/^name\s*[:\-]/i.test(line)) {
-      name = line.replace(/^name\s*[:\-]/i, "").trim();
-      break;
-    }
-  }
-  if (name === "Learner Candidate" && lines[0] && lines[0].length < 40 && !lines[0].includes("@") && !lines[0].includes("http")) {
-    name = lines[0];
-  }
-
-  // Extract email
-  const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-  const email = emailMatch ? emailMatch[0] : "learner@vridhi.gov.in";
-
-  // Extract education
-  let degree = "B.Tech";
-  let field = "Computer Science & Engineering";
-  let institution = "National Institute of Technology";
-  
-  if (/m\.tech|master/i.test(text)) degree = "M.Tech";
-  else if (/bca/i.test(text)) degree = "BCA";
-  else if (/mca/i.test(text)) degree = "MCA";
-  else if (/b\.sc|bachelor of science/i.test(text)) degree = "B.Sc";
-  else if (/b\.e|bachelor of engineering/i.test(text)) degree = "B.E";
-
-  if (/data science/i.test(text)) field = "Data Science";
-  else if (/information technology|it\b/i.test(text)) field = "Information Technology";
-  else if (/artificial intelligence|ai\b/i.test(text)) field = "AI & Machine Learning";
-  else if (/electronics/i.test(text)) field = "Electronics & Communication";
-
-  const universityMatch = text.match(/(?:at|from|university|institute|college of|nit|iit|iiit)\s+([A-Za-z\s]{3,35})/i);
-  if (universityMatch && universityMatch[1]) {
-    institution = universityMatch[0].trim();
-  }
-
-  // Extract skills from text
-  const detectedSkills: { id: string; name: string; domain: string; level: number }[] = [];
-  for (const item of KNOWN_SKILL_PATTERNS) {
-    if (item.pattern.test(text)) {
-      detectedSkills.push({
-        id: item.id,
-        name: item.name,
-        domain: item.domain,
-        level: 3,
-      });
-    }
-  }
-
-  // Ensure default skills if none matched
-  if (detectedSkills.length === 0) {
-    detectedSkills.push(
-      { id: "javascript", name: "JavaScript", domain: "frontend", level: 3 },
-      { id: "react", name: "React", domain: "frontend", level: 3 },
-      { id: "python", name: "Python", domain: "backend", level: 3 },
-      { id: "sql", name: "SQL", domain: "backend", level: 2 },
-      { id: "git", name: "Git & Version Control", domain: "devops", level: 3 }
-    );
-  }
-
-  return {
-    name,
-    email,
-    bio: `Dedicated learner in ${field} with practical skills in ${detectedSkills.slice(0, 3).map(s => s.name).join(", ")}.`,
-    education: {
-      degree,
-      field,
-      institution,
-      year: 2026,
-      gpa: 8.4,
-    },
-    skills: detectedSkills,
-    projects: [
-      {
-        title: "Full Stack Web Application",
-        description: "Engineered a responsive application with authenticated workflows and real-time data sync.",
-        techStack: detectedSkills.slice(0, 3).map(s => s.name),
-      },
-    ],
-    certifications: [
-      {
-        name: "National Skill Standard Verification",
-        issuer: "AICTE / NCVET Partner",
-        date: "2025-11-15",
-      },
-    ],
-  };
 }
 
 export async function extractSkillsFromResume(text: string, sources?: { githubUrl?: string; linkedinUrl?: string }, githubContext = ""): Promise<{
@@ -200,13 +174,10 @@ export async function extractSkillsFromResume(text: string, sources?: { githubUr
   projects: { title: string; description: string; techStack: string[] }[];
   certifications: { name: string; issuer: string; date: string }[];
 }> {
-  const fallback = fallbackResumeExtract(text, sources);
-
-  try {
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      {
-        role: "system",
-        content: `You are a resume parser for a skill intelligence platform. Extract structured information from the given resume text. Return ONLY valid JSON with no additional text.
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    {
+      role: "system",
+      content: `You are a resume parser for a skill intelligence platform. Extract structured information from the given resume text. Return ONLY valid JSON with no additional text.
 
 The JSON must have this exact structure:
 {
@@ -235,24 +206,24 @@ Skill levels: 1=Beginner, 2=Elementary, 3=Intermediate, 4=Advanced, 5=Expert.
 Infer skill levels from context (years of experience, project complexity, certifications).
 Use lowercase-kebab-case for skill IDs (e.g., "machine-learning", "react-native").
 Valid domains: frontend, backend, data-ai, cloud, devops, mobile, general.`,
-      },
-      {
-        role: "user",
-        content: `Parse this resume and extract structured information. Use the supplied GitHub metadata as additional evidence, but never invent details that are not present in the resume or metadata. LinkedIn is a reference link only and must not be treated as verified content.\n\nSource links: ${JSON.stringify(sources || {})}\nGitHub metadata: ${githubContext || "Unavailable"}\n\n${text}`,
-      },
-    ];
+    },
+    {
+      role: "user",
+      content: `Parse this resume and extract structured information. Use the supplied GitHub metadata as additional evidence, but never invent details that are not present in the resume or metadata. LinkedIn is a reference link only and must not be treated as verified content.\n\nSource links: ${JSON.stringify(sources || {})}\nGitHub metadata: ${githubContext || "Unavailable"}\n\n${text}`,
+    },
+  ];
 
-    const raw = await chatComplete(messages, { temperature: 0.1 });
-    const parsed = parseJSON(raw, fallback);
+  const raw = await chatComplete(messages, { temperature: 0.1 });
 
-    if (parsed && Array.isArray(parsed.skills) && parsed.skills.length > 0) {
-      return parsed;
-    }
-    return fallback;
-  } catch (error) {
-    console.warn("[AI] extractSkillsFromResume falling back to heuristic extractor:", error);
-    return fallback;
-  }
+  return parseJSON(raw, {
+    name: "Unknown",
+    email: "",
+    bio: "",
+    education: { degree: "", field: "", institution: "", year: 2026 },
+    skills: [],
+    projects: [],
+    certifications: [],
+  });
 }
 
 /**
@@ -260,59 +231,17 @@ Valid domains: frontend, backend, data-ai, cloud, devops, mobile, general.`,
  * Questions are easy/medium/hard based on claimed skill levels.
  * Mix of objective (multiple choice) and subjective (written) questions.
  */
-function generateFallbackQuestions(skills: { name: string; level: number; id: string }[]): AssessmentQuestion[] {
-  const questions: AssessmentQuestion[] = [];
-  const selectedSkills = skills.slice(0, 6);
-
-  selectedSkills.forEach((skill, idx) => {
-    const sName = skill.name;
-    const sId = skill.id;
-    const isHigher = skill.level >= 3;
-
-    // Objective question
-    questions.push({
-      id: `q_obj_${idx}_${sId}`,
-      skillId: sId,
-      skillName: sName,
-      type: "objective",
-      difficulty: isHigher ? "medium" : "easy",
-      question: `In practical development with ${sName}, what is the best practice for ensuring modularity, error resilience, and high performance?`,
-      options: [
-        `Separate business logic from presentation, use structured error handling, and optimize rendering/queries`,
-        `Write all application logic into a single centralized script to reduce function call overhead`,
-        `Avoid typing or linting to increase runtime velocity and bypass validation checks`,
-        `Hardcode configuration parameters and disable caching in production environments`
-      ],
-      correctAnswer: `Separate business logic from presentation, use structured error handling, and optimize rendering/queries`
-    });
-
-    // Subjective question
-    questions.push({
-      id: `q_subj_${idx}_${sId}`,
-      skillId: sId,
-      skillName: sName,
-      type: "subjective",
-      difficulty: isHigher ? "hard" : "medium",
-      question: `Describe a scenario where you implemented or debugged a component/service using ${sName}. What challenges did you encounter and how did you resolve them?`
-    });
-  });
-
-  return questions;
-}
-
 export async function generateAssessment(parsedProfile: {
   skills: { name: string; level: number; id: string }[];
   projects?: { title: string; techStack: string[] }[];
   certifications?: { name: string; issuer?: string }[];
 }): Promise<AssessmentQuestion[]> {
-  const skillsToAssess = parsedProfile.skills || [];
-  const fallbackQuestions = generateFallbackQuestions(skillsToAssess);
+  const skillsToAssess = parsedProfile.skills;
 
-  try {
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      {
-        role: "system",
-        content: `You are a skill assessment generator for a placement platform. Generate a personalized assessment based on the student's claimed skills. Return ONLY valid JSON.
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    {
+      role: "system",
+      content: `You are a skill assessment generator for a placement platform. Generate a personalized assessment based on the student's claimed skills. Return ONLY valid JSON.
 
 Rules:
 - Generate 1-3 questions per skill as needed to cover the profile (do not cap the number of skills).
@@ -338,28 +267,20 @@ Return JSON array:
 ]
 
 For subjective questions, omit "options" and "correctAnswer".`,
-      },
-      {
-        role: "user",
-        content: `Generate an assessment for this student profile:
+    },
+    {
+      role: "user",
+      content: `Generate an assessment for this student profile:
 
 Skills: ${JSON.stringify(skillsToAssess)}
 Projects: ${JSON.stringify(parsedProfile.projects || [])}
 Certifications: ${JSON.stringify(parsedProfile.certifications || [])}`,
-      },
-    ];
+    },
+  ];
 
-    const raw = await chatComplete(messages, { temperature: 0.4, maxTokens: 6000 });
-    const parsed = parseJSON<AssessmentQuestion[]>(raw, fallbackQuestions);
+  const raw = await chatComplete(messages, { temperature: 0.2, maxTokens: 12000 });
 
-    if (Array.isArray(parsed) && parsed.length >= 2) {
-      return parsed;
-    }
-    return fallbackQuestions;
-  } catch (error) {
-    console.warn("[AI] generateAssessment falling back to template questions:", error);
-    return fallbackQuestions;
-  }
+  return parseJSON<AssessmentQuestion[]>(raw, []);
 }
 
 /**
@@ -423,70 +344,41 @@ Student profile context: ${JSON.stringify(parsedProfile)}`,
     },
   ];
 
-  let raw = "";
-  try {
-    raw = await chatComplete(messages, { temperature: 0.2, maxTokens: 8000 });
-  } catch (err) {
-    console.warn("[AI] evaluateAssessment falling back to deterministic grading:", err);
-  }
-
-  // Calculate deterministic score from objective answers & answer completion
-  let totalScore = 0;
-  let evaluatedQuestionsCount = 0;
-  
-  questionsWithAnswers.forEach((q) => {
-    evaluatedQuestionsCount++;
-    if (q.type === "objective") {
-      if (q.studentAnswer && q.correctAnswer && q.studentAnswer === q.correctAnswer) {
-        totalScore += 100;
-      } else {
-        totalScore += 50;
-      }
-    } else {
-      // Subjective: give credit based on thoughtful answer length
-      const len = q.studentAnswer?.trim().length || 0;
-      if (len > 80) totalScore += 90;
-      else if (len > 30) totalScore += 75;
-      else totalScore += 50;
-    }
-  });
-
-  const computedOverallScore = evaluatedQuestionsCount > 0 ? Math.round(totalScore / evaluatedQuestionsCount) : 80;
-  const computedGrade = computedOverallScore >= 85 ? "A" : computedOverallScore >= 70 ? "B+" : computedOverallScore >= 55 ? "B" : "C+";
+  const raw = await chatComplete(messages, { temperature: 0.2, maxTokens: 8000 });
 
   const fallback: AssessmentResult = {
-    overallScore: computedOverallScore,
-    overallGrade: computedGrade,
+    overallScore: 50,
+    overallGrade: "C",
     skillGrades: parsedProfile.skills.map((s) => ({
       skillId: s.id,
       skillName: s.name,
       claimedLevel: s.level as SkillLevel,
-      assessedLevel: Math.max(1, Math.min(5, computedOverallScore >= 75 ? s.level : s.level - 1)) as SkillLevel,
-      score: computedOverallScore,
-      feedback: `Demonstrated solid foundational competency in ${s.name} aligned with national industry standards.`,
+      assessedLevel: Math.max(1, s.level - 1) as SkillLevel,
+      score: 50,
+      feedback: "Assessment could not be fully evaluated. Please try again.",
     })),
     recommendations: [
       ...parsedProfile.skills.slice(0, 4).map((skill) =>
-        `Build one practical ${skill.name} project at level ${Math.min(5, skill.level + 1)} difficulty and document the architecture.`
+        `Build one practical ${skill.name} project at level ${Math.min(5, skill.level + 1)} difficulty and document the decisions you made.`
       ),
-      "Participate in government hackathons and open-source contributions to showcase verified skills.",
+      "Retake the assessment after practicing the skills with the lowest scores.",
     ],
     cvTips: [
       ...((parsedProfile.projects || []).slice(0, 3).map((project) => {
         const title = typeof project === "object" && project !== null && "title" in project ? String(project.title) : "your project";
-        return `Add measurable outcomes, specific contributions, and tech stack details to ${title}.`;
+        return `Add measurable outcomes, your specific contribution, and the technologies used to ${title}.`;
       })),
       ...((parsedProfile.certifications || []).slice(0, 2).map((certification) => {
         const name = typeof certification === "object" && certification !== null && "name" in certification ? String(certification.name) : "each certification";
-        return `Highlight ${name} near your skills and connect it to a verified project.`;
+        return `Place ${name} near your skills and connect it to a project or assessed capability.`;
       })),
-      "Quantify impact with metrics: users, response times, uptime, or performance benchmarks.",
+      "Replace broad claims with evidence: scale, performance change, users, or time saved.",
     ],
   };
+  const result = parseJSON<AssessmentResult>(raw, fallback);
 
-  const result = raw ? parseJSON<AssessmentResult>(raw, fallback) : fallback;
-
-  // Keep the results useful even when an AI provider returns a valid but incomplete response.
+  // Keep the results useful even when an AI provider returns a valid but
+  // incomplete response.
   return {
     ...fallback,
     ...result,

@@ -30,9 +30,7 @@ const SIGNED_OUT: AuthState = { role: null, userName: "", userSlug: "", userId: 
 
 /** Where a user belongs after authenticating, based on role and onboarding state. */
 function destinationFor(profile: ProfileRow, onboardingComplete: boolean): string {
-  const role = profile.role as string;
-  if (role === "academician") return `/academician/${profile.slug}/dashboard`;
-  if (role === "recruiter") return `/recruiter/${profile.slug}/dashboard`;
+  if (profile.role === "recruiter") return `/recruiter/${profile.slug}/dashboard`;
   return onboardingComplete
     ? `/student/${profile.slug}/dashboard`
     : "/onboarding/upload";

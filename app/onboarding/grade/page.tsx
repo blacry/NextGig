@@ -10,67 +10,9 @@ import { Progress } from "@/components/ui/progress";
 import { SkillMeter } from "@/components/skill-meter";
 import { toast } from "sonner";
 import { useRole } from "@/lib/role-context";
-import {
-  Award,
-  CheckCircle2,
-  Sparkles,
-  TrendingUp,
-  ArrowRight,
-  ShieldCheck,
-  GraduationCap,
-  Lightbulb,
-} from "lucide-react";
 import type { AssessmentResult, SkillLevel } from "@/lib/types";
 
-// ── Step 5: Vridhi Assessment Results & Verified Profile Complete ─────
-
-const DEFAULT_FALLBACK_RESULT: AssessmentResult = {
-  overallScore: 88,
-  overallGrade: "A",
-  skillGrades: [
-    {
-      skillId: "react",
-      skillName: "React",
-      claimedLevel: 4 as SkillLevel,
-      assessedLevel: 4 as SkillLevel,
-      score: 90,
-      feedback: "Strong grasp of component architecture, hook lifecycles, and render optimization.",
-    },
-    {
-      skillId: "typescript",
-      skillName: "TypeScript",
-      claimedLevel: 3 as SkillLevel,
-      assessedLevel: 4 as SkillLevel,
-      score: 88,
-      feedback: "Demonstrated advanced comprehension of discriminated unions and static type safety.",
-    },
-    {
-      skillId: "node-js",
-      skillName: "Node.js",
-      claimedLevel: 3 as SkillLevel,
-      assessedLevel: 3 as SkillLevel,
-      score: 82,
-      feedback: "Good knowledge of REST endpoints, middleware execution, and async processing.",
-    },
-    {
-      skillId: "sql",
-      skillName: "SQL",
-      claimedLevel: 3 as SkillLevel,
-      assessedLevel: 3 as SkillLevel,
-      score: 80,
-      feedback: "Solid understanding of relational indexing, transactions, and relational queries.",
-    },
-  ],
-  recommendations: [
-    "Explore advanced distributed microservices and caching patterns using Redis.",
-    "Contribute to open-source national digital public infrastructure (DPI) modules.",
-    "Enroll in advanced cloud infrastructure pathways on SWAYAM/NPTEL.",
-  ],
-  cvTips: [
-    "Highlight full-stack project benchmarks (e.g. queries per second, latency reduction).",
-    "List verified Vridhi National Skill Badges in your digital resume profile.",
-  ],
-};
+// ── Step 5: Grade & Results ──────────────────────────────────────────
 
 export default function GradePage() {
   const [result, setResult] = useState<AssessmentResult | null>(null);
@@ -83,42 +25,67 @@ export default function GradePage() {
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as AssessmentResult;
-        setResult(parsed);
-        return;
-      } catch (err) {
-        console.error(err);
-      }
+        queueMicrotask(() => setResult(parsed));
+      } catch { router.push("/onboarding/upload"); }
+    } else {
+      router.push("/onboarding/upload");
     }
-    setResult(DEFAULT_FALLBACK_RESULT);
-    sessionStorage.setItem("nextgig-onboarding-result", JSON.stringify(DEFAULT_FALLBACK_RESULT));
-  }, []);
+  }, [router]);
 
+  // Commits the confirmed profile and assessed skill levels to Postgres, then
+  // sends the student to their dashboard. Nothing is persisted before this
+  // point — the wizard keeps its in-flight state in sessionStorage.
   const handleGoToDashboard = async () => {
     if (!result) return;
+
+    const stored = sessionStorage.getItem("nextgig-onboarding-parsed");
+    if (!stored) {
+      toast.error("Your profile data has expired. Please upload your CV again.");
+      router.push("/onboarding/upload");
+      return;
+    }
+
     setIsSaving(true);
-
     try {
-      const stored = sessionStorage.getItem("nextgig-onboarding-parsed");
-      const confirmedProfile = stored ? JSON.parse(stored) : { name: "Learner Candidate" };
+      const confirmedProfile: unknown = JSON.parse(stored);
 
-      await fetch("/api/complete-onboarding", {
+      const response = await fetch("/api/complete-onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirmedProfile, assessmentResult: result }),
       });
+
+      const payload: { error?: string; details?: string; skippedSkills?: string[] } = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        const detailStr = typeof payload.details === "object" ? JSON.stringify(payload.details) : payload.details;
+        throw new Error(detailStr ? `${payload.error ?? "Failed to save your profile."} (${detailStr})` : (payload.error ?? "Failed to save your profile."));
+      }
+
+      // Skills the AI invented that aren't in the taxonomy are dropped rather
+      // than failing the whole save; tell the student which ones.
+      if (payload.skippedSkills && payload.skippedSkills.length > 0) {
+        toast.warning(
+          `We could not verify these skills against our catalog: ${payload.skippedSkills.join(", ")}.`
+        );
+      }
 
       sessionStorage.removeItem("nextgig-onboarding-resume");
       sessionStorage.removeItem("nextgig-onboarding-parsed");
       sessionStorage.removeItem("nextgig-onboarding-questions");
       sessionStorage.removeItem("nextgig-onboarding-result");
 
-      toast.success("Vridhi profile successfully verified and established.");
-      const destination = userSlug ? `/student/${userSlug}/dashboard` : "/student/aarav-sharma/dashboard";
-      router.push(destination);
+      toast.success("Profile saved.");
+      router.push(`/student/${userSlug}/dashboard`);
     } catch (error) {
-      console.error("[onboarding] persist fallback:", error);
-      const destination = userSlug ? `/student/${userSlug}/dashboard` : "/student/aarav-sharma/dashboard";
-      router.push(destination);
+      console.error("[onboarding] failed to persist profile", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not save your profile. Please try again."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -126,88 +93,69 @@ export default function GradePage() {
 
   if (!result) return null;
 
+  const gradeColor = (grade: string) => {
+    if (grade.startsWith("A")) return "var(--ng-success)";
+    if (grade.startsWith("B")) return "var(--ng-primary)";
+    if (grade.startsWith("C")) return "var(--ng-warning)";
+    return "var(--ng-critical)";
+  };
+
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
-      {/* 1. Header & Stepper */}
-      <div className="text-center max-w-2xl mx-auto space-y-2">
-        <div className="inline-flex items-center gap-2 rounded-full border border-[#138808]/25 bg-[#138808]/8 px-3.5 py-1 text-xs font-bold text-[#138808]">
-          <span className="w-2 h-2 rounded-full bg-[#138808]" />
-          <span>STEP 05 OF 05 — COMPLETED</span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#123B6D] tracking-tight">
-          Your Verified Vridhi Skill Profile
-        </h1>
-        <p className="text-xs sm:text-sm text-[#5B6575]">
-          Congratulations! Your skill verification is complete. Below are your certified skill badges and national portal benchmarks.
+    <div>
+      {/* Step indicator - all complete */}
+      <div className="flex items-center gap-2 mb-8">
+        {[1, 2, 3, 4, 5].map((step) => (
+          <div key={step} className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium bg-[var(--ng-primary)] text-white">✓</div>
+            {step < 5 && <div className="w-8 h-px bg-[var(--ng-primary)]" />}
+          </div>
+        ))}
+      </div>
+
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+        <h2 className="text-2xl font-bold mb-2">Your Assessment Results</h2>
+        <p className="text-muted-foreground mb-6">
+          Here&apos;s how you performed. Your skill levels have been updated based on this assessment.
         </p>
-      </div>
 
-      {/* Stepper Timeline - All Completed */}
-      <div className="max-w-3xl mx-auto px-4">
-        <div className="flex items-center justify-between relative">
-          <div className="absolute top-4 left-6 right-6 h-[2px] bg-[#138808] -z-0" />
-          {[
-            { num: "01", label: "Profile" },
-            { num: "02", label: "Review" },
-            { num: "03", label: "Confirm" },
-            { num: "04", label: "Assessment" },
-            { num: "05", label: "Complete" },
-          ].map((s, idx) => (
-            <div key={idx} className="flex flex-col items-center relative z-10">
-              <div className="w-8 h-8 rounded-full bg-[#138808] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                ✓
+        {/* Overall score */}
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card className="mb-6 overflow-hidden">
+            <CardContent className="p-8 text-center">
+              <div className="inline-flex items-center justify-center w-24 h-24 rounded-full border-4 mb-4" style={{ borderColor: gradeColor(result.overallGrade) }}>
+                <span className="text-3xl font-bold" style={{ color: gradeColor(result.overallGrade) }}>
+                  {result.overallGrade}
+                </span>
               </div>
-              <span className="text-[11px] font-bold text-[#138808] mt-1.5">{s.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+              <p className="text-lg font-semibold mb-1">Overall Score: {result.overallScore}/100</p>
+              <Progress value={result.overallScore} className="max-w-xs mx-auto h-2 mt-3" />
+            </CardContent>
+          </Card>
+        </motion.div>
 
-      {/* Main Results Card */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6">
-        
-        {/* Score Banner Card */}
-        <Card className="bg-white border border-[#D9E1EA] rounded-2xl shadow-xs overflow-hidden">
-          <div className="h-2 bg-linear-to-r from-[#FF9933] via-white to-[#138808]" />
-          <CardContent className="p-8 text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full border-4 border-[#138808] bg-[#138808]/5 shadow-sm">
-              <span className="text-3xl font-extrabold text-[#138808]">{result.overallGrade}</span>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-[#123B6D]">
-                Overall Proficiency Benchmark: {result.overallScore}/100
-              </h2>
-              <p className="text-xs text-[#5B6575] mt-1">
-                Aligned with National Skill Qualification Framework (NSQF) &amp; SIH Industry Standards
-              </p>
-            </div>
-            <Progress value={result.overallScore} className="max-w-md mx-auto h-2.5 bg-[#E2E8F0] [&>div]:bg-[#138808]" />
-          </CardContent>
-        </Card>
-
-        {/* Breakdown of Verified Skills */}
-        <Card className="bg-white border border-[#D9E1EA] rounded-2xl shadow-xs">
-          <CardContent className="p-6 sm:p-7 space-y-5">
-            <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
-              <div className="flex items-center gap-2 text-[#123B6D]">
-                <ShieldCheck className="w-5 h-5 text-[#138808]" />
-                <h3 className="text-base font-bold">Verified Skill Competencies</h3>
-              </div>
-              <span className="text-xs text-[#138808] font-bold bg-[#138808]/10 px-2.5 py-1 rounded-full">
-                {result.skillGrades.length} Badges Verified
-              </span>
-            </div>
-
-            <div className="space-y-4 pt-1">
-              {result.skillGrades.map((grade, idx) => (
-                <div key={idx} className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-[#123B6D]">{grade.skillName}</span>
+        {/* Skill grades */}
+        <Card className="mb-6">
+          <CardContent className="p-5">
+            <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">Skill Assessment</h3>
+            <div className="space-y-4">
+              {result.skillGrades.map((grade, i) => (
+                <motion.div
+                  key={grade.skillId}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium">{grade.skillName}</span>
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-[#138808] text-white text-[10px] font-bold">
-                        Level {grade.assessedLevel}/5 Verified
+                      <Badge variant={grade.assessedLevel >= grade.claimedLevel ? "default" : "destructive"} className="text-[10px] h-auto min-h-0 min-w-0 py-0 px-1.5">
+                        {grade.assessedLevel >= grade.claimedLevel ? "Verified" : `Adjusted ${grade.claimedLevel} → ${grade.assessedLevel}`}
                       </Badge>
-                      <span className="text-xs font-bold text-[#1E5AA8]">{grade.score}%</span>
+                      <span className="text-xs text-muted-foreground">{grade.score}/100</span>
                     </div>
                   </div>
                   <SkillMeter
@@ -215,26 +163,23 @@ export default function GradePage() {
                     currentLevel={grade.assessedLevel as SkillLevel}
                     targetLevel={grade.claimedLevel as SkillLevel}
                   />
-                  <p className="text-xs text-[#5B6575] pt-1">{grade.feedback}</p>
-                </div>
+                  <p className="text-xs text-muted-foreground mt-1.5">{grade.feedback}</p>
+                </motion.div>
               ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* AI Recommendations */}
+        {/* Recommendations */}
         {result.recommendations && result.recommendations.length > 0 && (
-          <Card className="bg-[#FAFBFD] border border-[#D9E1EA] rounded-2xl shadow-xs">
-            <CardContent className="p-6 space-y-3.5">
-              <div className="flex items-center gap-2 text-[#123B6D]">
-                <TrendingUp className="w-4 h-4 text-[#1E5AA8]" />
-                <h3 className="text-sm font-bold">Vridhi Growth &amp; Skill Recommendations</h3>
-              </div>
-              <ul className="space-y-2 text-xs text-[#334155]">
+          <Card className="mb-6 ai-surface">
+            <CardContent className="p-5">
+              <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-3">AI Recommendations</h3>
+              <ul className="space-y-2">
                 {result.recommendations.map((rec, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-[#138808] shrink-0 mt-0.5" />
-                    <span>{rec}</span>
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--ng-primary)" stroke="none" className="mt-0.5 shrink-0"><path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z" /></svg>
+                    {rec}
                   </li>
                 ))}
               </ul>
@@ -244,17 +189,14 @@ export default function GradePage() {
 
         {/* CV Tips */}
         {result.cvTips && result.cvTips.length > 0 && (
-          <Card className="bg-[#FAFBFD] border border-[#D9E1EA] rounded-2xl shadow-xs">
-            <CardContent className="p-6 space-y-3.5">
-              <div className="flex items-center gap-2 text-[#123B6D]">
-                <Lightbulb className="w-4 h-4 text-amber-500" />
-                <h3 className="text-sm font-bold">Profile &amp; Career Impact Insights</h3>
-              </div>
-              <ul className="space-y-2 text-xs text-[#334155]">
+          <Card className="mb-6">
+            <CardContent className="p-5">
+              <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-3">CV Improvement Tips</h3>
+              <ul className="space-y-2">
                 {result.cvTips.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                    <span>{tip}</span>
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <span className="text-[var(--ng-warning)] shrink-0">💡</span>
+                    {tip}
                   </li>
                 ))}
               </ul>
@@ -262,17 +204,9 @@ export default function GradePage() {
           </Card>
         )}
 
-        {/* Dashboard CTA */}
-        <div className="pt-2">
-          <Button
-            onClick={handleGoToDashboard}
-            disabled={isSaving}
-            className="w-full h-12 bg-[#1E5AA8] hover:bg-[#123B6D] text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
-          >
-            <span>{isSaving ? "Finalizing Your Vridhi Dashboard..." : "Go to Learner Dashboard →"}</span>
-            <ArrowRight className="w-4 h-4" />
-          </Button>
-        </div>
+        <Button onClick={handleGoToDashboard} size="lg" className="w-full" disabled={isSaving}>
+          {isSaving ? "Saving your profile..." : "Go to My Dashboard →"}
+        </Button>
       </motion.div>
     </div>
   );
