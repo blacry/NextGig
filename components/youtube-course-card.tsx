@@ -35,7 +35,7 @@ export function YouTubeCourseCard({
       whileHover={{ y: -4 }}
     >
       <Card
-        className="cursor-pointer hover:border-[var(--ng-primary)]/30 transition-all duration-200 hover:shadow-lg overflow-hidden group"
+        className="h-full min-w-0 cursor-pointer hover:border-[var(--ng-primary)]/30 transition-all duration-200 hover:shadow-lg overflow-hidden group"
         onClick={openVideo}
       >
         <div className="relative aspect-video overflow-hidden bg-muted">
@@ -73,8 +73,9 @@ export function YouTubeCourseCard({
             </div>
           )}
         </div>
-        <CardContent className="p-4">
-          <h3 className="font-semibold text-sm mb-2 line-clamp-2 group-hover:text-[var(--ng-primary)] transition-colors">
+        <CardContent className="flex flex-1 flex-col p-4">
+
+          <h3 className="min-h-10 font-semibold text-sm mb-2 line-clamp-2 group-hover:text-[var(--ng-primary)] transition-colors">
             {title}
           </h3>
           <div className="flex items-center gap-2 mb-2">
@@ -85,7 +86,7 @@ export function YouTubeCourseCard({
               {relevance}% match
             </span>
           </div>
-          <p className="text-xs text-muted-foreground line-clamp-2">
+          <p className="mt-auto min-h-8 text-xs text-muted-foreground line-clamp-2">
             {description}
           </p>
         </CardContent>

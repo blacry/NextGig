@@ -146,11 +146,11 @@ export default function CoursesPage() {
           <Badge variant="secondary" className="shrink-0">✨ Personalized</Badge>
         </div>
         {loadingYoutube ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="card-grid card-grid-3">
             <SkeletonCard /><SkeletonCard /><SkeletonCard />
           </div>
         ) : youtubeCourses.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="card-grid card-grid-3">
             {youtubeCourses.slice(0, 6).map((course, index) => (
               <YouTubeCourseCard key={`${course.videoId}-${index}`} {...course} index={index} />
             ))}

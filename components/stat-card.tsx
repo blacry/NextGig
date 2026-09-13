@@ -44,14 +44,16 @@ export function StatCard({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
+      className="h-full"
       transition={{ duration: 0.3, delay: index * 0.08 }}
       whileHover={{ y: -2, transition: { duration: 0.2 } }}
     >
-      <Card className="hover:shadow-lg hover:border-[var(--ng-primary)]/20 transition-all duration-200 relative overflow-hidden group">
+      <Card className="h-full min-h-[164px] hover:shadow-lg hover:border-[var(--ng-primary)]/20 transition-all duration-200 relative overflow-hidden group">
+
         {/* Decorative gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-[var(--ng-primary)]/0 via-transparent to-[var(--ng-primary)]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-        <CardContent className="p-5 relative">
+        <CardContent className="flex h-full flex-col p-5 relative">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">

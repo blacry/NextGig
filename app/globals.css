@@ -335,6 +335,31 @@
     -webkit-text-fill-color: transparent;
   }
 
+  /* Uniform responsive card grids. Cards stretch to the tallest sibling. */
+  .card-grid {
+    display: grid;
+    align-items: stretch;
+    gap: 1.5rem;
+  }
+  .card-grid > * {
+    min-width: 0;
+  }
+  .card-grid-3 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  @media (min-width: 640px) {
+    .card-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1024px) {
+    .card-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  .card-grid-2 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  @media (min-width: 768px) {
+    .card-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
   /* Subtle card hover lift */
   .hover-lift {
     transition: all 0.2s ease;

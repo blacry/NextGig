@@ -185,13 +185,13 @@ export default function OpportunitiesPage() {
       </div>
 
       {isLoadingOpportunities ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="card-grid card-grid-3">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="card-grid card-grid-3">
           {sortedFiltered.map(({ opp, company, result }, index) => (
             <OpportunityCard
               key={opp.id}

@@ -41,7 +41,7 @@ export function EmptyState({ icon, title, description, actionLabel, onAction }: 
 
 export function SkeletonCard({ className = "" }: { className?: string }) {
   return (
-    <div className={`rounded-xl border bg-card p-5 space-y-3 ${className}`}>
+    <div className={`flex h-full min-h-[180px] min-w-0 flex-col rounded-xl border bg-card p-5 space-y-3 ${className}`}>
       <div className="h-4 w-2/3 bg-muted rounded animate-shimmer" />
       <div className="h-3 w-full bg-muted rounded animate-shimmer" />
       <div className="h-3 w-4/5 bg-muted rounded animate-shimmer" />

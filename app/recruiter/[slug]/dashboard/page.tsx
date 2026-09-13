@@ -98,7 +98,7 @@ export default function RecruiterDashboardPage() {
       </motion.div>
 
       {/* Top Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="card-grid card-grid-3 lg:grid-cols-4">
         <StatCard index={0} title="Active Roles" value={activeRoles} description={`${opportunities.length} posted in total`} />
         <StatCard index={1} title="Total Candidates" value={candidates.length} description="Onboarded and searchable" />
         <StatCard index={2} title="Applications" value={0} description="Across your open roles" />

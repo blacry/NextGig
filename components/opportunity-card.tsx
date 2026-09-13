@@ -57,16 +57,17 @@ export function OpportunityCard({
   return (
     <>
       <motion.div
+        className="h-full min-w-0"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: index * 0.05 }}
         whileHover={{ y: -4, transition: { duration: 0.2 } }}
       >
-        <Card className="group cursor-pointer hover:border-[var(--ng-primary)]/30 transition-all duration-200 hover:shadow-lg relative overflow-hidden">
+        <Card className="h-full group cursor-pointer hover:border-[var(--ng-primary)]/30 transition-all duration-200 hover:shadow-lg relative overflow-hidden">
           {/* Subtle gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-br from-[var(--ng-primary)]/0 via-[var(--ng-primary)]/0 to-[var(--ng-primary)]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
-          <CardContent className="p-5 relative">
+          <CardContent className="flex h-full flex-col p-5 relative">
             {/* Header */}
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="min-w-0 flex-1">
@@ -179,12 +180,12 @@ export function OpportunityCard({
             </div>
 
             {/* Actions */}
-            <div className="flex gap-2">
+            <div className="mt-auto flex flex-wrap gap-2 pt-2">
               <Button
                 size="sm"
                 variant="outline"
                 onClick={handleViewDetails}
-                className="flex-1 h-9 text-xs min-h-0"
+                className="min-w-0 flex-1 h-9 text-xs min-h-0"
               >
                 View Details
               </Button>
@@ -200,7 +201,7 @@ export function OpportunityCard({
                 <Button
                   size="sm"
                   onClick={handleApply}
-                  className="flex-1 h-9 text-xs min-h-0"
+                  className="min-w-0 flex-1 h-9 text-xs min-h-0"
                 >
                   Apply Now
                 </Button>

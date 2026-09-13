@@ -171,7 +171,7 @@ export default function StudentDashboardPage() {
             </div>
             <button className="text-sm text-[var(--ng-primary)] hover:underline" onClick={() => router.push(`/student/${student.slug}/courses`)}>View all</button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="card-grid card-grid-3">
             {youtubeCourses.slice(0, 3).map((course, index) => (
               <YouTubeCourseCard key={`${course.videoId}-${index}`} {...course} index={index} />
             ))}
