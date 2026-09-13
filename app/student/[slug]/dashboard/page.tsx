@@ -25,7 +25,7 @@ interface OpportunityWithCompany {
 }
 
 export default function StudentDashboardPage() {
-  const { student, isLoaded, applications } = useStudent();
+  const { student, isLoaded, applications, addApplication } = useStudent();
   const router = useRouter();
   const [opportunities, setOpportunities] = useState<OpportunityWithCompany[]>([]);
   const [readiness, setReadiness] = useState<{
@@ -104,6 +104,7 @@ export default function StudentDashboardPage() {
     (a) => !TERMINAL_STAGES.includes(a.currentStage)
   ).length;
   const interviewApps = applications.filter((a) => a.currentStage === "interview").length;
+  const applicationStatusLabel = (stage: string) => stage.charAt(0).toUpperCase() + stage.slice(1);
 
   // Find gaps for the best match
   const bestMatch = opportunities.find((row) => row.opportunity.id === readiness.bestMatchId);
@@ -179,18 +180,25 @@ export default function StudentDashboardPage() {
         </section>
       )}
 
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-3"><div><h3 className="text-lg font-semibold">Application activity</h3><p className="text-sm text-muted-foreground">Live updates from recruiter pipelines.</p></div><button className="text-sm text-[var(--ng-primary)] hover:underline" onClick={() => router.push(`/student/${student.slug}/opportunities`)}>View opportunities</button></div>
+        <Card><CardContent className="p-0">{applications.length ? <div className="card-grid card-grid-2 gap-3 p-4">{applications.slice(0, 6).map((application) => { const row = opportunities.find((item) => item.opportunity.id === application.opportunityId); const latest = application.stageHistory.at(-1); return <button key={application.id} onClick={() => router.push(`/student/${student.slug}/opportunities`)} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-4 text-left transition-colors hover:bg-muted/50"><div className="min-w-0"><p className="truncate text-sm font-semibold">{row?.opportunity.title || "Opportunity"}</p><p className="mt-1 text-xs text-muted-foreground">Updated {latest ? new Date(latest.timestamp).toLocaleDateString() : "recently"}</p></div><span className="shrink-0 rounded-full bg-[var(--ng-primary)]/10 px-2.5 py-1 text-xs font-medium text-[var(--ng-primary)]">{applicationStatusLabel(application.currentStage)}</span></button>; })}</div> : <div className="p-6 text-center text-sm text-muted-foreground">No applications yet. Explore opportunities to get started.</div>}</CardContent></Card>
+      </section>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Left Column: Top Match & Gaps */}
         <div className="xl:col-span-2 space-y-6">
           <h3 className="font-semibold text-lg">Top Recommended Opportunity</h3>
           {bestMatch ? (
+            <div className="max-w-2xl">
             <OpportunityCard
               opportunity={bestMatch.opportunity}
               company={bestMatch.company}
               matchReason={`Your ${bestMatch.opportunity.domain} background and Level ${student.skills[0]?.level || 3} ${student.skills[0]?.name || "skills"} make you a strong candidate.`}
               onViewDetails={() => router.push(`/student/${student.slug}/opportunities`)}
-              onApply={() => router.push(`/student/${student.slug}/opportunities`)}
+              onApply={() => void addApplication(bestMatch.opportunity.id)}
             />
+            </div>
           ) : (
             <Card>
               <CardContent className="p-6 text-center text-muted-foreground text-sm">
@@ -240,7 +248,7 @@ export default function StudentDashboardPage() {
 
           {/* Career Tips Card */}
           <Card className="bg-gradient-to-br from-[var(--ng-primary)]/5 to-[var(--ng-primary)]/10 border-[var(--ng-primary)]/20">
-            <CardContent className="p-5">
+            <CardContent className="p-4">
               <div className="flex items-start gap-3 mb-4">
                 <div className="w-10 h-10 rounded-lg bg-[var(--ng-primary)]/20 flex items-center justify-center shrink-0">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ng-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -258,19 +266,15 @@ export default function StudentDashboardPage() {
                   </p>
                 </div>
               </div>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-[var(--ng-primary)] mt-0.5">•</span>
-                  <span>Complete skill assessments to verify your expertise</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[var(--ng-primary)] mt-0.5">•</span>
-                  <span>Add recent projects to demonstrate practical experience</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[var(--ng-primary)] mt-0.5">•</span>
-                  <span>Close critical skill gaps to unlock more opportunities</span>
-                </li>
+              <ul className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                {[
+                  "Complete skill assessments to verify expertise",
+                  "Add recent projects to show practical experience",
+                  "Close critical gaps to unlock more roles",
+                  "Refresh your profile before applying",
+                  "Practice explaining your strongest projects",
+                  "Track application feedback and next steps",
+                ].map((tip) => <li key={tip} className="flex items-start gap-2"><span className="text-[var(--ng-primary)]">•</span><span>{tip}</span></li>)}
               </ul>
             </CardContent>
           </Card>
@@ -290,24 +294,24 @@ export default function StudentDashboardPage() {
               title="Keep your profile fresh"
               reason="Adding a recent project boosts your experience match on every role you apply to."
               actionLabel="Update Profile"
-              onAction={() => router.push(`/student/${student.slug}/passport`)}
+              onAction={() => router.push(`/student/${student.slug}/portfolio`)}
             />
           )}
 
-          <Card className="mt-6 border-dashed bg-muted/30">
-            <CardHeader className="pb-3">
+          <Card className="border-dashed bg-muted/30">
+            <CardHeader className="p-4 pb-2">
               <CardTitle className="text-sm">Quick Actions</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <button onClick={() => router.push("/onboarding/upload")} className="w-full flex items-center justify-between p-2.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
+            <CardContent className="space-y-1 p-3">
+              <button onClick={() => router.push("/onboarding/upload")} className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
                 <span>Update Resume</span>
                 <span className="text-muted-foreground">→</span>
               </button>
-              <button onClick={() => router.push(`/student/${student.slug}/passport`)} className="w-full flex items-center justify-between p-2.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
+              <button onClick={() => router.push(`/student/${student.slug}/portfolio`)} className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
                 <span>Request Project Verification</span>
                 <span className="text-muted-foreground">→</span>
               </button>
-              <button onClick={() => router.push(`/student/${student.slug}/skills`)} className="w-full flex items-center justify-between p-2.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
+              <button onClick={() => router.push(`/student/${student.slug}/skills`)} className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-accent transition-colors text-sm font-medium text-left">
                 <span>View All Skills</span>
                 <span className="text-muted-foreground">→</span>
               </button>

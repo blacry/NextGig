@@ -113,6 +113,37 @@ export function StudentProvider({
     void load();
   }, [load]);
 
+  // Applications can be advanced by a recruiter in another browser session.
+  // Refresh while visible and whenever the student returns to the tab so the
+  // dashboard reflects the database without requiring a hard reload.
+  useEffect(() => {
+    if (!studentSlug) return;
+    let inFlight = false;
+    const refreshApplications = async () => {
+      if (inFlight || document.visibilityState !== "visible") return;
+      const profile = student;
+      if (!profile) return;
+      inFlight = true;
+      try {
+        setApplications(await getApplicationsByStudentId(profile.id));
+      } catch (error) {
+        console.error("[StudentProvider] failed to refresh applications", error);
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onFocus = () => void refreshApplications();
+    const onVisibility = () => void refreshApplications();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    const interval = window.setInterval(() => void refreshApplications(), 30000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(interval);
+    };
+  }, [student, studentSlug]);
+
   // Chat history is browser-local; there is no table for it.
   useEffect(() => {
     if (!studentSlug) return;

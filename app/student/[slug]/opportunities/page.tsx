@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SkeletonCard } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import type { Company, MatchResult, Opportunity } from "@/lib/types";
 
 // ── Student Opportunities View ───────────────────────────────────────
@@ -31,6 +33,7 @@ export default function OpportunitiesPage() {
   const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(true);
   const [sortBy, setSortBy] = useState<SortOption>("match");
   const [filterType, setFilterType] = useState<FilterType>("all");
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
 
   useEffect(() => {
     if (!student) return;
@@ -115,6 +118,13 @@ export default function OpportunitiesPage() {
 
   return (
     <div className="space-y-6">
+      {selectedOpportunity && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedOpportunity(null)}>
+          <Card className="max-h-[90vh] w-full max-w-2xl overflow-auto" onClick={(event: React.MouseEvent) => event.stopPropagation()}>
+            <CardContent className="space-y-4 p-6"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">{selectedOpportunity.title}</h2><p className="text-sm text-muted-foreground">{selectedOpportunity.location} · {selectedOpportunity.type}</p></div><Button variant="ghost" onClick={() => setSelectedOpportunity(null)}>Close</Button></div><p className="text-sm leading-relaxed text-muted-foreground">{selectedOpportunity.description}</p><div className="flex flex-wrap gap-2">{[...selectedOpportunity.requiredSkills, ...selectedOpportunity.preferredSkills].map((skill) => <Badge key={skill.skillId} variant={skill.preferred ? "outline" : "secondary"}>{skill.skillName} · Level {skill.requiredLevel}{skill.preferred ? " · preferred" : ""}</Badge>)}</div><Button className="w-full" disabled={appliedOpportunityIds.has(selectedOpportunity.id)} onClick={() => { void addApplication(selectedOpportunity.id); setSelectedOpportunity(null); }}>{appliedOpportunityIds.has(selectedOpportunity.id) ? "Already applied" : "Apply now"}</Button></CardContent>
+          </Card>
+        </div>
+      )}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <h1 className="text-3xl font-bold tracking-tight">Opportunities</h1>
         <p className="text-muted-foreground mt-1">Discover roles matched to your verified skills.</p>
@@ -199,7 +209,7 @@ export default function OpportunitiesPage() {
               opportunity={opp}
               company={company}
               matchResult={result}
-              onViewDetails={() => {}}
+              onViewDetails={() => setSelectedOpportunity(opp)}
               onApply={
                 appliedOpportunityIds.has(opp.id)
                   ? undefined
