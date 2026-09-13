@@ -307,7 +307,7 @@ export default function SkillGapPage() {
 
                 {criticalGaps.length > 0 && (
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="p-4 pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
                         <Badge className="bg-[var(--ng-critical)]/10 text-[var(--ng-critical)] border-[var(--ng-critical)]/20">
                           Critical
@@ -317,9 +317,9 @@ export default function SkillGapPage() {
                         </span>
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      {criticalGaps.map((gap, i) => (
-                        <div key={gap.skillId} className="space-y-2">
+                    <CardContent className="space-y-2.5 p-4">
+                      {criticalGaps.slice(0, Math.max(2, Math.min(criticalGaps.length, 4))).map((gap, i) => (
+                        <div key={gap.skillId} className="space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <h4 className="font-medium mb-1">{gap.skillName}</h4>
@@ -342,7 +342,7 @@ export default function SkillGapPage() {
 
                 {moderateGaps.length > 0 && (
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="p-4 pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
                         <Badge className="bg-[var(--ng-warning)]/10 text-[var(--ng-warning)] border-[var(--ng-warning)]/20">
                           Moderate
@@ -353,8 +353,8 @@ export default function SkillGapPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {moderateGaps.slice(0, 3).map((gap, i) => (
-                        <div key={gap.skillId} className="space-y-2">
+                      {moderateGaps.slice(0, Math.max(2, Math.min(moderateGaps.length, 4))).map((gap, i) => (
+                        <div key={gap.skillId} className="space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <h4 className="font-medium mb-1">{gap.skillName}</h4>
@@ -369,13 +369,13 @@ export default function SkillGapPage() {
                             </div>
                           </div>
                           {i < Math.min(3, moderateGaps.length) - 1 && (
-                            <div className="border-b border-border mt-4" />
+                            <div className="border-b border-border/60 mt-2" />
                           )}
                         </div>
                       ))}
-                      {moderateGaps.length > 3 && (
-                        <p className="text-sm text-muted-foreground text-center pt-2">
-                          +{moderateGaps.length - 3} more moderate gaps
+                      {moderateGaps.length > 4 && (
+                        <p className="text-sm text-muted-foreground text-center pt-1">
+                          +{moderateGaps.length - 4} more moderate gaps
                         </p>
                       )}
                     </CardContent>
@@ -389,7 +389,7 @@ export default function SkillGapPage() {
 
                 {learningPaths.length > 0 ? (
                   <div className="space-y-3">
-                    {learningPaths.slice(0, 4).map((path, index) => (
+                    {learningPaths.slice(0, Math.max(2, Math.min(learningPaths.length, 4))).map((path, index) => (
                       <motion.div
                         key={path.id}
                         initial={{ opacity: 0, x: 20 }}
@@ -397,10 +397,10 @@ export default function SkillGapPage() {
                         transition={{ delay: 0.4 + index * 0.1 }}
                       >
                         <Card
-                          className="hover:border-[var(--ng-primary)] transition-colors cursor-pointer"
+                          className="h-auto hover:border-[var(--ng-primary)] transition-colors cursor-pointer"
                           onClick={() => router.push(`/student/${student.slug}/courses`)}
                         >
-                          <CardContent className="p-4">
+                          <CardContent className="p-3">
                             <div className="flex items-start gap-3">
                               <div className="w-10 h-10 rounded-lg bg-[var(--ng-primary)]/10 flex items-center justify-center shrink-0">
                                 <svg

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
+const YOUTUBE_OEMBED = "https://www.youtube.com/oembed";
+
 export const runtime = "nodejs";
 
 function getClient(): OpenAI {
@@ -27,6 +29,22 @@ interface YouTubeCourse {
   channel: string;
   description: string;
   relevance: number;
+}
+
+function isValidVideoId(videoId: unknown): videoId is string {
+  return typeof videoId === "string" && /^[A-Za-z0-9_-]{11}$/.test(videoId);
+}
+
+async function isAvailableOnYouTube(videoId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${YOUTUBE_OEMBED}?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`, {
+      signal: AbortSignal.timeout(5000),
+      cache: "no-store",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(request: Request) {
@@ -96,13 +114,23 @@ Return ONLY valid JSON in this exact format:
       .trim();
 
     const parsed = JSON.parse(cleaned);
-    const courses: YouTubeCourse[] = parsed.courses || [];
+    const candidates: YouTubeCourse[] = Array.isArray(parsed.courses) ? parsed.courses : [];
 
-    // Add thumbnail URLs
-    const coursesWithThumbnails = courses.map((course) => ({
-      ...course,
-      thumbnail: `https://img.youtube.com/vi/${course.videoId}/maxresdefault.jpg`,
-    }));
+    // AI can hallucinate IDs or suggest removed/private videos. Validate every
+    // recommendation against YouTube's public oEmbed endpoint before returning it.
+    const verified = await Promise.all(
+      candidates
+        .filter((course) => isValidVideoId(course.videoId))
+        .slice(0, 12)
+        .map(async (course) => ({ course, available: await isAvailableOnYouTube(course.videoId) }))
+    );
+    const coursesWithThumbnails = verified
+      .filter(({ available }) => available)
+      .map(({ course }) => ({
+        ...course,
+        thumbnail: `https://img.youtube.com/vi/${course.videoId}/hqdefault.jpg`,
+      }))
+      .slice(0, 6);
 
     return NextResponse.json({ courses: coursesWithThumbnails });
   } catch (error) {
